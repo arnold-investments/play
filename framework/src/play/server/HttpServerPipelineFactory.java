@@ -49,7 +49,7 @@ public class HttpServerPipelineFactory implements ChannelPipelineFactory {
                     playHandler.pipelines.put(name, instance);
                 }
             } catch (Throwable e) {
-                Logger.error(" error adding " + handler, e);
+                Logger.error(e, " error adding " + handler);
             }
         }
                
