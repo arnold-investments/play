@@ -72,7 +72,11 @@ public class HttpServerPipelineFactory implements ChannelPipelineFactory {
             try {
                 return Class.forName(className);
             } catch (ClassNotFoundException e) {
-                throw new UnexpectedException(e);
+                try {
+                    return Play.classloader.loadClass(className);
+                } catch(ClassNotFoundException ex) {
+                    throw new UnexpectedException(ex);
+                }
             }
         });
         if (ChannelHandler.class.isAssignableFrom(clazz))
