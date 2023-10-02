@@ -1,22 +1,17 @@
 package play.libs;
 
-import static java.nio.charset.Charset.defaultCharset;
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-import static org.apache.commons.io.Charsets.toCharset;
 import static org.apache.commons.io.IOUtils.closeQuietly;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Properties;
-import java.util.stream.Stream;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 
 import play.exceptions.UnexpectedException;
@@ -82,11 +77,7 @@ public class IO {
      * @return The String content
      */
     public static String readContentAsString(File file) {
-        try {
-            return Files.readString(file.toPath(), UTF_8);
-        } catch (IOException e) {
-            throw new UnexpectedException(e);
-        }
+        return readContentAsString(file, "utf-8");
     }
 
     /**
@@ -100,34 +91,32 @@ public class IO {
      */
     public static String readContentAsString(File file, String encoding) {
         try {
-            return Files.readString(file.toPath(), toCharset(encoding));
+            return FileUtils.readFileToString(file, encoding);
         } catch (IOException e) {
             throw new UnexpectedException(e);
         }
     }
 
     public static List<String> readLines(InputStream is) {
+        List<String> lines = null;
         try {
-            return IOUtils.readLines(is, defaultCharset());
+            lines = IOUtils.readLines(is);
         } catch (IOException ex) {
             throw new UnexpectedException(ex);
         }
+        return lines;
     }
 
     public static List<String> readLines(File file, String encoding) {
         try {
-            return Files.readAllLines(file.toPath(), toCharset(encoding));
+            return FileUtils.readLines(file, encoding);
         } catch (IOException ex) {
             throw new UnexpectedException(ex);
         }
     }
 
     public static List<String> readLines(File file) {
-        try {
-            return Files.readAllLines(file.toPath(), UTF_8);
-        } catch (IOException ex) {
-            throw new UnexpectedException(ex);
-        }
+        return readLines(file, "utf-8");
     }
 
     /**
@@ -139,7 +128,7 @@ public class IO {
      */
     public static byte[] readContent(File file) {
         try {
-            return Files.readAllBytes(file.toPath());
+            return FileUtils.readFileToByteArray(file);
         } catch (IOException e) {
             throw new UnexpectedException(e);
         }
@@ -169,13 +158,7 @@ public class IO {
      *            The stream to write
      */
     public static void writeContent(CharSequence content, OutputStream os) {
-        try {
-            IOUtils.write(content, os, UTF_8);
-        } catch (IOException e) {
-            throw new UnexpectedException(e);
-        } finally {
-            closeQuietly(os);
-        }
+        writeContent(content, os, "utf-8");
     }
 
     /**
@@ -207,11 +190,7 @@ public class IO {
      *            The file to write
      */
     public static void writeContent(CharSequence content, File file) {
-        try {
-            Files.writeString(file.toPath(), content, UTF_8);
-        } catch (IOException e) {
-            throw new UnexpectedException(e);
-        }
+        writeContent(content, file, "utf-8");
     }
 
     /**
@@ -226,7 +205,7 @@ public class IO {
      */
     public static void writeContent(CharSequence content, File file, String encoding) {
         try {
-            Files.writeString(file.toPath(), content, toCharset(encoding));
+            FileUtils.write(file, content, encoding);
         } catch (IOException e) {
             throw new UnexpectedException(e);
         }
@@ -242,14 +221,14 @@ public class IO {
      */
     public static void write(byte[] data, File file) {
         try {
-            Files.write(file.toPath(), data);
+            FileUtils.writeByteArrayToFile(file, data);
         } catch (IOException e) {
             throw new UnexpectedException(e);
         }
     }
 
     /**
-     * Copy a stream to another one. By the end of the method the input stream {@code is} will be closed.
+     * Copy an stream to another one.
      * 
      * @param is
      *            The source stream
@@ -267,7 +246,7 @@ public class IO {
     }
 
     /**
-     * Copy a stream to another one. By the end of the method both of streams {@code is} and {@code os} will be closed.
+     * Copy an stream to another one.
      * 
      * @param is
      *            The source stream
@@ -309,16 +288,19 @@ public class IO {
 
     // If targetLocation does not exist, it will be created.
     public static void copyDirectory(File source, File target) {
-        try (Stream<Path> dirs = Files.walk(source.toPath())) {
-            dirs.forEach(src -> {
-                try {
-                    Files.copy(source.toPath(), target.toPath(), REPLACE_EXISTING);
-                } catch (IOException e) {
-                    throw new UnexpectedException(e);
-                }
-            });
-        } catch (IOException e) {
-            throw new UnexpectedException(e);
+        if (source.isDirectory()) {
+            if (!target.exists()) {
+                target.mkdir();
+            }
+            for (String child : source.list()) {
+                copyDirectory(new File(source, child), new File(target, child));
+            }
+        } else {
+            try {
+                write(new FileInputStream(source), new FileOutputStream(target));
+            } catch (IOException e) {
+                throw new UnexpectedException(e);
+            }
         }
     }
 
