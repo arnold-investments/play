@@ -1,6 +1,15 @@
 package play.db;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -13,6 +22,13 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 import play.Logger;
@@ -26,6 +42,7 @@ import play.db.evolutions.EvolutionState;
 import play.db.evolutions.exceptions.InconsistentDatabase;
 import play.db.evolutions.exceptions.InvalidDatabaseRevision;
 import play.exceptions.UnexpectedException;
+import play.jobs.JobsPlugin;
 import play.libs.IO;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
@@ -554,13 +571,45 @@ public class Evolutions extends PlayPlugin {
         }
     }
 
-    public static synchronized List<Evolution> getEvolutionScript(String dbName, String moduleKey, VirtualFile evolutionsDirectory) {
-        Stack<Evolution> app = listApplicationEvolutions(dbName, moduleKey, evolutionsDirectory);
+
+
+    private static final ConcurrentHashMap<String, WatchKey> watched = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<WatchKey, String> watchKeyMap = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Stack<Evolution>> evolutions = new ConcurrentHashMap<>();
+
+
+    public static void watchCallback(WatchKey watchKey, List<WatchEvent<?>> events) {
+        String key = watchKeyMap.get(watchKey);
+        evolutions.remove(key);
+    }
+
+
+    public static List<Evolution> getEvolutionScript(String dbName, String moduleKey, VirtualFile evolutionsDirectory) {
+        String key = dbName + "\0" + moduleKey;
+        Path path = evolutionsDirectory.getRealFile().toPath();
+        Stack<Evolution> app;
+
+        if (Play.mode.isDev()) {
+            watched.computeIfAbsent(key, k -> {
+                try {
+                    WatchKey watchKey = Play.registerWatcher(path, Evolutions::watchCallback, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
+                    watchKeyMap.put(watchKey, key);
+                    return watchKey;
+                } catch (IOException e) {
+                    throw new UnexpectedException(e);
+                }
+            });
+
+            app = evolutions.computeIfAbsent(key, k -> listApplicationEvolutions(dbName, moduleKey, evolutionsDirectory));
+        } else {
+            app = listApplicationEvolutions(dbName, moduleKey, evolutionsDirectory);
+        }
+
         Stack<Evolution> db = listDatabaseEvolutions(dbName, moduleKey);
         List<Evolution> downs = new ArrayList<>();
         List<Evolution> ups = new ArrayList<>();
 
-        // Apply non conflicting evolutions (ups and downs)
+        // Apply non-conflicting evolutions (ups and downs)
         while (db.peek().revision != app.peek().revision) {
             if (db.peek().revision > app.peek().revision) {
                 downs.add(db.pop());
@@ -585,44 +634,70 @@ public class Evolutions extends PlayPlugin {
         return script;
     }
 
+    private static final Pattern PATTERN_DB_DEFAULT = Pattern.compile("^(?:" + DB.DEFAULT + ".)?[0-9]+\\.sql$");
+    private static final Pattern PATTERN_EVO_UP = Pattern.compile("^#.*[!]Ups");
+    private static final Pattern PATTERN_EVO_DOWN = Pattern.compile("^#.*[!]Downs");
+
     public static synchronized Stack<Evolution> listApplicationEvolutions(String dBName, String moduleKey,
             VirtualFile evolutionsDirectory) {
         Stack<Evolution> evolutions = new Stack<>();
         evolutions.add(new Evolution("", 0, "", "", true));
         if (evolutionsDirectory.exists()) {
-            for (File evolution : evolutionsDirectory.getRealFile().listFiles()) {
-                if (evolution.getName().matches("^" + dBName + ".[0-9]+[.]sql$")
-                        || (DB.DEFAULT.equals(dBName) && evolution.getName().matches("^[0-9]+[.]sql$"))) {
-                    if (Logger.isTraceEnabled()) {
-                        Logger.trace("Loading evolution %s", evolution);
+            Path path = evolutionsDirectory.getRealFile().toPath();
+
+            try(DirectoryStream<Path> dirStream = Files.newDirectoryStream(path)) {
+	            Pattern pattern = DB.DEFAULT.equals(dBName)
+                    ? PATTERN_DB_DEFAULT
+                    : Pattern.compile("^" + dBName + ".[0-9]+\\.sql$");
+
+                for (Path evolution : dirStream) {
+                    if (Files.isDirectory(evolution)) {
+                        continue;
                     }
 
-                    int version = 0;
-                    if (evolution.getName().contains(dBName)) {
-                        version = Integer.parseInt(
-                                evolution.getName().substring(evolution.getName().indexOf('.') + 1, evolution.getName().lastIndexOf('.')));
-                    } else {
-                        version = Integer.parseInt(evolution.getName().substring(0, evolution.getName().indexOf('.')));
-                    }
+                    String name = evolution.getFileName().toString();
 
-                    String sql = IO.readContentAsString(evolution);
-                    StringBuilder sql_up = new StringBuilder();
-                    StringBuilder sql_down = new StringBuilder();
-                    StringBuilder current = new StringBuilder();
-                    for (String line : sql.split("\r?\n")) {
-                        if (line.trim().matches("^#.*[!]Ups")) {
-                            current = sql_up;
-                        } else if (line.trim().matches("^#.*[!]Downs")) {
-                            current = sql_down;
-                        } else if (line.trim().startsWith("#")) {
-                            // skip
-                        } else if (!StringUtils.isEmpty(line.trim())) {
-                            current.append(line).append("\n");
+                    if (pattern.matcher(name).matches()) {
+                        if (Logger.isTraceEnabled()) {
+                            Logger.trace("Loading evolution %s", evolution);
                         }
+
+                        int version = 0;
+                        if (name.contains(dBName)) {
+                            version = Integer.parseInt(
+                                name.substring(name.indexOf('.') + 1, name.lastIndexOf('.')));
+                        } else {
+                            version = Integer.parseInt(name.substring(0, name.indexOf('.')));
+                        }
+
+                        List<String> sql = Files.readAllLines(evolution);
+
+                        StringBuilder sql_up = new StringBuilder();
+                        StringBuilder sql_down = new StringBuilder();
+                        StringBuilder current = null;
+
+                        for (String line : sql) {
+                            if (PATTERN_EVO_UP.matcher(line).matches()) {
+                                current = sql_up;
+                            } else if (PATTERN_EVO_DOWN.matcher(line).matches()) {
+                                current = sql_down;
+                            } else if (current != null) {
+                                String trimmed = line.trim();
+
+                                if (trimmed.startsWith("#")) {
+                                    // skip
+                                } else if (!trimmed.isEmpty()) {
+                                    current.append(line).append("\n");
+                                }
+                            }
+                        }
+                        evolutions.add(new Evolution(moduleKey, version, sql_up.toString(), sql_down.toString(), true));
                     }
-                    evolutions.add(new Evolution(moduleKey, version, sql_up.toString(), sql_down.toString(), true));
                 }
+            } catch (IOException ex) {
+                throw new UnexpectedException(ex);
             }
+
             Collections.sort(evolutions);
         }
         return evolutions;

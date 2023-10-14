@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.annotation.Annotation;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,12 +32,14 @@ public class ApplicationClasses {
      * Cache of all compiled classes
      */
     Map<String, ApplicationClass> classes = new ConcurrentHashMap<>();
+    final Map<Path, ApplicationClass> pathMap = new ConcurrentHashMap<>();
 
     /**
      * Clear the classes cache
      */
     public void clear() {
         classes = new ConcurrentHashMap<>();
+        pathMap.clear();
     }
 
     /**
@@ -49,7 +52,13 @@ public class ApplicationClasses {
     public ApplicationClass getApplicationClass(String name) {
         return classes.computeIfAbsent(name, className -> {
             VirtualFile javaFile = getJava(className);
-            return javaFile == null ? null : new ApplicationClass(className, javaFile);
+            if (javaFile == null) {
+                return null;
+            }
+
+	        ApplicationClass applicationClass = new ApplicationClass(className, javaFile);
+            pathMap.put(javaFile.getRealFile().toPath(), applicationClass);
+            return applicationClass;
         });
     }
 
@@ -126,6 +135,7 @@ public class ApplicationClasses {
      */
     public void add(ApplicationClass applicationClass) {
         classes.put(applicationClass.name, applicationClass);
+        pathMap.put(applicationClass.javaFile.getRealFile().toPath(), applicationClass);
     }
 
     /**
@@ -136,6 +146,7 @@ public class ApplicationClasses {
      */
     public void remove(ApplicationClass applicationClass) {
         classes.remove(applicationClass.name);
+        pathMap.remove(applicationClass.javaFile.getRealFile().toPath());
     }
 
     /**
@@ -145,7 +156,10 @@ public class ApplicationClasses {
      *            The class name to remove
      */
     public void remove(String applicationClass) {
-        classes.remove(applicationClass);
+	    ApplicationClass actualClass = classes.remove(applicationClass);
+        if (actualClass != null) {
+            pathMap.remove(actualClass.javaFile.getRealFile().toPath());
+        }
     }
 
     /**

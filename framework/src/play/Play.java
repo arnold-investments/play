@@ -8,6 +8,12 @@ import java.io.LineNumberReader;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -19,13 +25,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import play.cache.Cache;
 import play.classloading.ApplicationClasses;
 import play.classloading.ApplicationClassloader;
+import play.db.Evolutions;
 import play.deps.DependenciesManager;
 import play.exceptions.PlayException;
 import play.exceptions.RestartNeededException;
@@ -645,6 +656,65 @@ public class Play {
             return false;
         }
     }
+
+
+    public static final WatchService watchService;
+    private static final ExecutorService watchServiceExecutor = Executors.newSingleThreadExecutor();
+    private static final Map<WatchKey, WatchCallback> watchServiceCallbacks = new ConcurrentHashMap<>();
+
+    static {
+        try {
+            if (Play.mode.isDev()) {
+                watchService = FileSystems.getDefault().newWatchService();
+                watchServiceExecutor.submit(Play::watcherLoop);
+            } else {
+                watchService = null;
+            }
+        } catch (IOException e) {
+            throw new UnexpectedException(e);
+        }
+    }
+
+    private static void watcherLoop() {
+        try {
+            while (true) {
+                WatchKey watchKey = watchService.take();
+                if (!watchKey.isValid()) {
+                    break;
+                }
+
+	            List<WatchEvent<?>> events = watchKey.pollEvents();
+
+                WatchCallback callback = watchServiceCallbacks.get(watchKey);
+
+                try {
+                    if (callback != null) {
+                        callback.accept(watchKey, events);
+                    }
+                } finally {
+                    watchKey.reset();
+                }
+            }
+        } catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public interface WatchCallback {
+        void accept(WatchKey watchKey, List<WatchEvent<?>> events);
+    }
+
+    public static WatchKey registerWatcher(Path path, WatchCallback callback, WatchEvent.Kind<?>... events) throws IOException {
+        WatchKey watchKey = path.register(Play.watchService, events);
+        watchServiceCallbacks.put(watchKey, callback);
+        return watchKey;
+    }
+
+    public static void unregisterWatcher(WatchKey watchKey) {
+        watchKey.cancel();
+        watchServiceCallbacks.remove(watchKey);
+    }
+
 
     /**
      * Detect sources modifications

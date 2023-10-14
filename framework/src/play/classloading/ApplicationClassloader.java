@@ -11,6 +11,15 @@ import java.lang.annotation.Annotation;
 import java.lang.instrument.ClassDefinition;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.AllPermission;
 import java.security.CodeSource;
 import java.security.Permissions;
@@ -23,11 +32,14 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -63,6 +75,7 @@ public class ApplicationClassloader extends ClassLoader {
 
     public ApplicationClassloader() {
         super(ApplicationClassloader.class.getClassLoader());
+
         // Clean the existing classes
         for (ApplicationClass applicationClass : Play.classes.all()) {
             applicationClass.uncompile();
@@ -309,6 +322,160 @@ public class ApplicationClassloader extends ClassLoader {
         };
     }
 
+    private static final AtomicBoolean watcherInstalled = new AtomicBoolean(false);
+    private static final AtomicBoolean runRegularDetectChanges = new AtomicBoolean(false);
+    private static final WatchEvent.Kind<?>[] WATCH_EVENT_KINDS_ALL = new WatchEvent.Kind<?>[]{ StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.OVERFLOW };
+    private static final Map<Path, WatchKey> pathWatchKeyMap = new ConcurrentHashMap<>();
+
+
+    public static void detectChangesWatcherCallback(WatchKey watchKey, List<WatchEvent<?>> events) {
+        boolean clearCache = false;
+        for(WatchEvent<?> event : events) {
+            if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
+                Path path = (Path)event.context();
+
+	            WatchKey k = pathWatchKeyMap.remove(path);
+
+                if (k != null) {
+                    Play.unregisterWatcher(k);
+                }
+
+                if (Files.isDirectory(path)) {
+                    // remove all classes in that dir
+                    synchronized (Play.classes.pathMap) {
+                        List<ApplicationClass> classesToRemove = new ArrayList<>();
+                        for (Iterator<Map.Entry<Path, ApplicationClass>> it = Play.classes.pathMap.entrySet().iterator(); it.hasNext(); ) {
+	                        Map.Entry<Path, ApplicationClass> entry = it.next();
+
+                            if (entry.getKey().startsWith(path)) {
+	                            classesToRemove.add(entry.getValue());
+                                clearCache = true;
+                            }
+                        }
+
+                        for (ApplicationClass applicationClass : classesToRemove) {
+                            removeClass(applicationClass, false);
+                        }
+                    }
+
+                    synchronized (pathWatchKeyMap) {
+                        // unregister any possible watches in that dir
+                        for (Iterator<Map.Entry<Path, WatchKey>> it = pathWatchKeyMap.entrySet().iterator(); it.hasNext(); ) {
+                            Map.Entry<Path, WatchKey> entry = it.next();
+                            if (entry.getKey().startsWith(path)) {
+                                Play.unregisterWatcher(entry.getValue());
+                                it.remove();
+                            }
+                        }
+                    }
+
+                } else {
+                    synchronized (Play.classes.pathMap) {
+                        ApplicationClass applicationClass = Play.classes.pathMap.get(path);
+
+                        if (applicationClass != null) {
+                            removeClass(applicationClass, applicationClass.name.contains("$"));
+                            clearCache = true;
+                        }
+                    }
+                }
+            } else if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
+                Path path = (Path)event.context();
+
+                if (Files.isDirectory(path)) {
+                    try {
+                        Files.walkFileTree((Path) event.context(), Set.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, detectChangesAddingVisitor);
+                    } catch(IOException ex) {
+                        throw new UnexpectedException(ex);
+                    }
+                }
+            } else if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
+                Path path = (Path)event.context();
+
+                if (!Files.isDirectory(path)) {
+                    if (Play.classes.pathMap.containsKey(path)) {
+                        // TODO: handle file modified instead of running regular detect
+                        clearCache = true;
+                    }
+                } else {
+                    // TODO: dir rename
+                }
+            } else if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
+                clearCache = true;
+            }
+        }
+
+        if (clearCache) {
+            runRegularDetectChanges.compareAndSet(false, true);
+        }
+    }
+
+    private static class DetectChangesVisitor implements FileVisitor<Path> {
+        private final boolean addFiles;
+
+        public DetectChangesVisitor(boolean addFiles) {
+            this.addFiles = addFiles;
+        }
+
+        @Override
+        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)  {
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            if (Files.isDirectory(file)) {
+                synchronized (pathWatchKeyMap) {
+                    if (!pathWatchKeyMap.containsKey(file)) {
+                        pathWatchKeyMap.put(file, Play.registerWatcher(file, ApplicationClassloader::detectChangesWatcherCallback, WATCH_EVENT_KINDS_ALL));
+                    }
+                }
+            } else if (addFiles) {
+                String filename = file.getFileName().toString();
+                if (file.endsWith(".java")) {
+                    synchronized (Play.classes.pathMap) {
+                        if (!Play.classes.pathMap.containsKey(file)) {
+                            String className = filename.substring(0, filename.length() - 5); // ".java".length() = 5
+                            AtomicReference<Path> currentPath = new AtomicReference<>(file);
+
+                            while(Play.javaPath.stream().noneMatch(vf -> vf.getRealFile().toPath().equals(currentPath.get()))) {
+                                Path cp = currentPath.get();
+                                className = cp.getFileName() + "." + className;
+                                cp = cp.getParent();
+
+                                if (cp == null) {
+                                    throw new UnexpectedException("Unable to build className: " + file);
+                                }
+
+                                currentPath.set(cp);
+                            }
+
+                            ApplicationClass applicationClass = new ApplicationClass(className);
+                            Play.classes.add(applicationClass);
+                        }
+                    }
+                }
+            }
+
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path file, IOException exc) {
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc)  {
+            return FileVisitResult.CONTINUE;
+        }
+    }
+
+
+    private static final FileVisitor<Path> detectChangesRegisteringVisitor = new DetectChangesVisitor(false);
+    private static final FileVisitor<Path> detectChangesAddingVisitor = new DetectChangesVisitor(true);
+
+
     /**
      * Detect Java changes
      * 
@@ -316,6 +483,20 @@ public class ApplicationClassloader extends ClassLoader {
      *             Thrown if the application need to be restarted
      */
     public void detectChanges() throws RestartNeededException {
+        if (watcherInstalled.compareAndSet(false, true)) {
+            Path appPath = Play.applicationPath.toPath().resolve("app");
+
+            try {
+                Files.walkFileTree(appPath, Set.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, detectChangesRegisteringVisitor);
+            } catch(IOException ex) {
+                throw new UnexpectedException(ex);
+            }
+        }
+
+        if (!runRegularDetectChanges.compareAndSet(true, false)) {
+            return;
+        }
+
         // Now check for file modification
         List<ApplicationClass> modifieds = new ArrayList<>();
         for (ApplicationClass applicationClass : Play.classes.all()) {
@@ -324,17 +505,19 @@ public class ApplicationClassloader extends ClassLoader {
                 modifieds.add(applicationClass);
             }
         }
+
         Set<ApplicationClass> modifiedWithDependencies = new HashSet<>(modifieds);
         if (!modifieds.isEmpty()) {
             modifiedWithDependencies.addAll(Play.pluginCollection.onClassesChange(modifieds));
         }
+
         List<ClassDefinition> newDefinitions = new ArrayList<>();
         boolean dirtySig = false;
         for (ApplicationClass applicationClass : modifiedWithDependencies) {
-            if (applicationClass.compile() == null) {
+	        // show others that we have changed..
+	        if (applicationClass.compile() == null) {
                 Play.classes.classes.remove(applicationClass.name);
-                currentState = new ApplicationClassloaderState();// show others that we have changed..
-            } else {
+	        } else {
                 int sigChecksum = applicationClass.sigChecksum;
                 applicationClass.enhance();
                 if (sigChecksum != applicationClass.sigChecksum) {
@@ -342,8 +525,8 @@ public class ApplicationClassloader extends ClassLoader {
                 }
                 BytecodeCache.cacheBytecode(applicationClass.enhancedByteCode, applicationClass.name, applicationClass.javaSource);
                 newDefinitions.add(new ClassDefinition(applicationClass.javaClass, applicationClass.enhancedByteCode));
-                currentState = new ApplicationClassloaderState();// show others that we have changed..
-            }
+	        }
+	        currentState = new ApplicationClassloaderState(); // show others that we have changed...
         }
 
         if (!newDefinitions.isEmpty()) {
@@ -364,27 +547,54 @@ public class ApplicationClassloader extends ClassLoader {
         }
 
         // Now check if there is new classes or removed classes
-        int hash = computePathHash();
-        if (hash != this.pathHash) {
+        boolean hashChanged = false;
+        synchronized (classStateHashCreator) {
+            int hash = computePathHash();
+            if (hash != this.pathHash) {
+                hashChanged = true;
+                this.pathHash = hash; // prevent "Path has changed" loop
+            }
+        }
+
+        if (hashChanged) {
+            Set<String> changed = new LinkedHashSet<>();
             // Remove class for deleted files !!
             for (ApplicationClass applicationClass : Play.classes.all()) {
+                boolean removed = false;
                 if (!applicationClass.javaFile.exists()) {
-                    Play.classes.classes.remove(applicationClass.name);
-                    currentState = new ApplicationClassloaderState();// show others that we have changed..
+                    removeClass(applicationClass, false);
+                    removed = true;
                 }
+
                 if (applicationClass.name.contains("$")) {
-                    Play.classes.classes.remove(applicationClass.name);
-                    currentState = new ApplicationClassloaderState();// show others that we have changed..
-                    // Ok we have to remove all classes from the same file ...
-                    VirtualFile vf = applicationClass.javaFile;
-                    for (ApplicationClass ac : Play.classes.all()) {
-                        if (ac.javaFile.equals(vf)) {
-                            Play.classes.classes.remove(ac.name);
-                        }
-                    }
+                    removeClass(applicationClass, true);
+                    removed = true;
+                }
+
+                if (removed) {
+                    changed.add(applicationClass.name);
                 }
             }
-            throw new RestartNeededException("Path has changed");
+            if (changed.isEmpty()) {
+                throw new UnexpectedException("Path hash changed, but no file actually changed!");
+            } else {
+                currentState = new ApplicationClassloaderState(); // show others that we have changed...
+                throw new RestartNeededException("Path has changed: " + String.join(", ", changed));
+            }
+        }
+    }
+
+    private static void removeClass(ApplicationClass applicationClass, boolean removeAll) {
+        Play.classes.remove(applicationClass.name);
+
+        if (removeAll) {
+            // Ok we have to remove all classes from the same file ...
+            VirtualFile vf = applicationClass.javaFile;
+            for (ApplicationClass ac : Play.classes.all()) {
+                if (ac.javaFile.equals(vf)) {
+                    Play.classes.remove(ac.name);
+                }
+            }
         }
     }
 
@@ -544,7 +754,7 @@ public class ApplicationClassloader extends ClassLoader {
     }
 
     private List<ApplicationClass> getAllClasses(VirtualFile path, String basePackage) {
-        if (basePackage.length() > 0 && !basePackage.endsWith(".")) {
+        if (!basePackage.isEmpty() && !basePackage.endsWith(".")) {
             basePackage += ".";
         }
         List<ApplicationClass> res = new ArrayList<>();
