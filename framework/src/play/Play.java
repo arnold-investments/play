@@ -533,7 +533,7 @@ public class Play {
 
             // SecretKey
             secretKey = configuration.getProperty("application.secret", "").trim();
-            if (secretKey.length() == 0) {
+            if (secretKey.isEmpty()) {
                 Logger.warn("No secret key defined. Sessions will not be encrypted");
             }
 

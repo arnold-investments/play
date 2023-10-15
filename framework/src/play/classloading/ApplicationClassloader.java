@@ -330,10 +330,12 @@ public class ApplicationClassloader extends ClassLoader {
 
     public static void detectChangesWatcherCallback(WatchKey watchKey, List<WatchEvent<?>> events) {
         boolean clearCache = false;
-        for(WatchEvent<?> event : events) {
-            if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
-                Path path = (Path)event.context();
+        Path parentDir = (Path)watchKey.watchable();
 
+        for(WatchEvent<?> event : events) {
+            Path path = parentDir.resolve((Path)event.context());
+
+            if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
 	            WatchKey k = pathWatchKeyMap.remove(path);
 
                 if (k != null) {
@@ -380,8 +382,6 @@ public class ApplicationClassloader extends ClassLoader {
                     }
                 }
             } else if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE) {
-                Path path = (Path)event.context();
-
                 if (Files.isDirectory(path)) {
                     try {
                         Files.walkFileTree((Path) event.context(), Set.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, detectChangesAddingVisitor);
@@ -390,8 +390,6 @@ public class ApplicationClassloader extends ClassLoader {
                     }
                 }
             } else if (event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
-                Path path = (Path)event.context();
-
                 if (!Files.isDirectory(path)) {
                     if (Play.classes.pathMap.containsKey(path)) {
                         // TODO: handle file modified instead of running regular detect
@@ -399,6 +397,7 @@ public class ApplicationClassloader extends ClassLoader {
                     }
                 } else {
                     // TODO: dir rename
+                    clearCache = true;
                 }
             } else if (event.kind() == StandardWatchEventKinds.OVERFLOW) {
                 clearCache = true;
@@ -418,19 +417,19 @@ public class ApplicationClassloader extends ClassLoader {
         }
 
         @Override
-        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)  {
+        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+            synchronized (pathWatchKeyMap) {
+                if (!pathWatchKeyMap.containsKey(dir)) {
+                    pathWatchKeyMap.put(dir, Play.registerWatcher(dir, ApplicationClassloader::detectChangesWatcherCallback, WATCH_EVENT_KINDS_ALL));
+                }
+            }
+
             return FileVisitResult.CONTINUE;
         }
 
         @Override
-        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-            if (Files.isDirectory(file)) {
-                synchronized (pathWatchKeyMap) {
-                    if (!pathWatchKeyMap.containsKey(file)) {
-                        pathWatchKeyMap.put(file, Play.registerWatcher(file, ApplicationClassloader::detectChangesWatcherCallback, WATCH_EVENT_KINDS_ALL));
-                    }
-                }
-            } else if (addFiles) {
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+            if (addFiles) {
                 String filename = file.getFileName().toString();
                 if (file.endsWith(".java")) {
                     synchronized (Play.classes.pathMap) {
@@ -610,7 +609,7 @@ public class ApplicationClassloader extends ClassLoader {
     /**
      * Try to load all .java files found.
      * 
-     * @return The list of well defined Class
+     * @return The list of well-defined Class
      */
     public List<Class<?>> getAllClasses() {
         if (allClasses == null) {
@@ -645,7 +644,7 @@ public class ApplicationClassloader extends ClassLoader {
                         }
                     }
 
-                    Play.classes.compiler.compile(classNames.toArray(new String[classNames.size()]));
+                    Play.classes.compiler.compile(classNames.toArray(new String[0]));
 
                 }
 

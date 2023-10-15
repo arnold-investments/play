@@ -12,8 +12,7 @@ import play.exceptions.UnexpectedException;
 public class EnhancerPlugin extends PlayPlugin {
 
     protected Enhancer[] defaultEnhancers() {
-        return new Enhancer[] { new PropertiesEnhancer(), new ContinuationEnhancer(), new SigEnhancer(), new ControllersEnhancer(),
-                new MailerEnhancer(), new LocalvariablesNamesEnhancer() };
+        return new Enhancer[] { new ContinuationEnhancer(), new SigEnhancer(), new ControllersEnhancer() /*, new LocalvariablesNamesEnhancer() */ };
     }
 
     @Override

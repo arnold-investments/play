@@ -5,8 +5,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.stream.Stream;
-
 import org.eclipse.jdt.core.compiler.IProblem;
+import org.eclipse.jdt.core.compiler.batch.BatchCompiler;
 import org.eclipse.jdt.internal.compiler.ClassFile;
 import org.eclipse.jdt.internal.compiler.CompilationResult;
 import org.eclipse.jdt.internal.compiler.Compiler;
@@ -22,7 +22,6 @@ import org.eclipse.jdt.internal.compiler.env.INameEnvironment;
 import org.eclipse.jdt.internal.compiler.env.NameEnvironmentAnswer;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
-
 import play.Logger;
 import play.Play;
 import play.classloading.ApplicationClasses.ApplicationClass;
@@ -275,7 +274,7 @@ public class ApplicationCompiler {
                     className = className.substring(0, className.length() - 5);
                     String message = problem.getMessage();
                     if (problem.getID() == IProblem.CannotImportPackage) {
-                        // Non sense !
+                        // Nonsense !
                         message = problem.getArguments()[0] + " cannot be resolved";
                     }
                     throw new CompilationException(Play.classes.getApplicationClass(className).javaFile, message,
@@ -302,6 +301,7 @@ public class ApplicationCompiler {
             }
         };
 
+
         /**
          * The JDT compiler
          */
@@ -311,6 +311,8 @@ public class ApplicationCompiler {
             protected void handleInternalException(Throwable e, CompilationUnitDeclaration ud, CompilationResult result) {
             }
         };
+
+        jdtCompiler.useSingleThread = false;
 
         // Go !
         jdtCompiler.compile(compilationUnits);

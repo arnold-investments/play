@@ -62,6 +62,16 @@ public class ApplicationClasses {
         });
     }
 
+    public ApplicationClass getApplicationClass(String name, Path path) {
+        return classes.computeIfAbsent(name, className -> {
+            VirtualFile javaFile = VirtualFile.open(path.toFile());
+
+            ApplicationClass applicationClass = new ApplicationClass(className, javaFile);
+            pathMap.put(path, applicationClass);
+            return applicationClass;
+        });
+    }
+
     /**
      * Retrieve all application classes assignable to this class.
      * 
