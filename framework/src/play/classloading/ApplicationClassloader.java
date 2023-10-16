@@ -574,12 +574,9 @@ public class ApplicationClassloader extends ClassLoader {
                     changed.add(applicationClass.name);
                 }
             }
-            if (changed.isEmpty()) {
-                throw new UnexpectedException("Path hash changed, but no file actually changed!");
-            } else {
-                currentState = new ApplicationClassloaderState(); // show others that we have changed...
-                throw new RestartNeededException("Path has changed: " + String.join(", ", changed));
-            }
+
+            currentState = new ApplicationClassloaderState(); // show others that we have changed...
+            throw new RestartNeededException("Path has changed");
         }
     }
 
