@@ -1,5 +1,8 @@
 package play.mvc;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSerializer;
+import com.thoughtworks.xstream.XStream;
 import java.io.File;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -12,15 +15,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Stack;
 import java.util.concurrent.Future;
-
 import org.apache.commons.javaflow.Continuation;
 import org.apache.commons.javaflow.bytecode.StackRecorder;
 import org.w3c.dom.Document;
-
-import com.google.gson.Gson;
-import com.google.gson.JsonSerializer;
-import com.thoughtworks.xstream.XStream;
-
 import play.Invoker.Suspend;
 import play.Logger;
 import play.Play;
@@ -949,7 +946,7 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
 
     /**
      * Call the parent action adding this objects to the params scope
-     * 
+     *
      * @param args
      *            List of parameters
      * @deprecated
@@ -1133,7 +1130,7 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
             // Params
             // We know that the params are partially reprocessed during
             // awake(Before now), but here we restore the correct values as
-            // they where when we performed the await();
+            // they were when we performed the await();
             Map<String, String[]> params = (Map<String, String[]>) Request.current().args.remove(ActionInvoker.CONTINUATIONS_STORE_PARAMS);
             Scope.Params.current().all().clear();
             if (params != null) {
@@ -1255,7 +1252,7 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
 
     /**
      * Checks if the classname is from the jdk, sun or play package and therefore should not be checked for enhancement
-     * @param String className
+     * @param className
      * @return boolean
      */
     static boolean shouldBeCheckedForEnhancement(String className)
@@ -1297,7 +1294,7 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
     }
 
     /**
-     * Register a customer template name resolver. That letter allows to override the way templates are resolved.
+     * Register a customer template name resolver. This allows to override the way templates are resolved.
      * 
      * @param templateNameResolver
      *            The template resolver
@@ -1309,7 +1306,7 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
     }
 
     /**
-     * This allow people that implements their own template engine to override the way template are resolved.
+     * This allows people that implement their own template engine to override the way templates are resolved.
      */
     public interface ITemplateNameResolver {
         /**

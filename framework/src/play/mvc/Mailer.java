@@ -7,16 +7,15 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-
 import javax.activation.DataSource;
 import javax.activation.URLDataSource;
 import javax.mail.internet.InternetAddress;
-
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.mail.Email;
@@ -25,10 +24,8 @@ import org.apache.commons.mail.EmailException;
 import org.apache.commons.mail.HtmlEmail;
 import org.apache.commons.mail.MultiPartEmail;
 import org.apache.commons.mail.SimpleEmail;
-
 import play.Logger;
 import play.Play;
-import play.classloading.enhancers.LocalvariablesNamesEnhancer.LocalVariablesNamesTracer;
 import play.classloading.enhancers.LocalvariablesNamesEnhancer.LocalVariablesSupport;
 import play.exceptions.MailException;
 import play.exceptions.TemplateNotFoundException;
@@ -404,7 +401,7 @@ public class Mailer implements LocalVariablesSupport {
         infos.set(map);
     }
 
-    public static Future<Boolean> send(Object... args) {
+    public static Future<Boolean> send(String template, Map<String, Object> templateBindings) {
         try {
             Map<String, Object> map = infos.get();
             if (map == null) {
@@ -431,19 +428,17 @@ public class Mailer implements LocalVariablesSupport {
             templateName = templateName.replace('.', '/');
 
             // overrides Template name
-            if (args.length > 0 && args[0] instanceof String && LocalVariablesNamesTracer.getAllLocalVariableNames(args[0]).isEmpty()) {
-                templateName = args[0].toString();
+            if (template != null) {
+                templateName = template;
             }
 
-            Map<String, Object> templateHtmlBinding = new HashMap<>();
-            Map<String, Object> templateTextBinding = new HashMap<>();
-            for (Object o : args) {
-                List<String> names = LocalVariablesNamesTracer.getAllLocalVariableNames(o);
-                for (String name : names) {
-                    templateHtmlBinding.put(name, o);
-                    templateTextBinding.put(name, o);
-                }
+            if (templateBindings == null) {
+                templateBindings = Collections.emptyMap();
             }
+
+            Map<String, Object> templateHtmlBinding = new HashMap<>(templateBindings);
+            Map<String, Object> templateTextBinding = new HashMap<>(templateBindings);
+
 
             // The rule is as follow: If we ask for text/plain, we don't care about the HTML
             // If we ask for HTML and there is a text/plain we add it as an alternative.
@@ -613,9 +608,9 @@ public class Mailer implements LocalVariablesSupport {
         }
     }
 
-    public static boolean sendAndWait(Object... args) {
+    public static boolean sendAndWait(String template, Map<String, Object> templateBindings) {
         try {
-            Future<Boolean> result = send(args);
+            Future<Boolean> result = send(template, templateBindings);
             return result.get();
         } catch (InterruptedException | ExecutionException e) {
             Logger.error(e, "Error while waiting Mail.send result");
