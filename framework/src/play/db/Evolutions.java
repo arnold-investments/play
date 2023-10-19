@@ -600,7 +600,8 @@ public class Evolutions extends PlayPlugin {
                 }
             });
 
-            app = evolutions.computeIfAbsent(key, k -> listApplicationEvolutions(dbName, moduleKey, evolutionsDirectory));
+            //noinspection unchecked
+            app = (Stack<Evolution>) (evolutions.computeIfAbsent(key, k -> listApplicationEvolutions(dbName, moduleKey, evolutionsDirectory)).clone());
         } else {
             app = listApplicationEvolutions(dbName, moduleKey, evolutionsDirectory);
         }
