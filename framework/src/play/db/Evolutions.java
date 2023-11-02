@@ -82,7 +82,7 @@ public class Evolutions extends PlayPlugin {
             System.exit(-1);
             return;
         }
-
+        
         Logger.init();
         Logger.setUp("ERROR");
         new DBPlugin().onApplicationStart();
@@ -589,7 +589,7 @@ public class Evolutions extends PlayPlugin {
         Path path = evolutionsDirectory.getRealFile().toPath();
         Stack<Evolution> app;
 
-        if (Play.mode.isDev()) {
+        if (Play.mode.isDev() && Play.watchService != null) {
             watched.computeIfAbsent(key, k -> {
                 try {
                     WatchKey watchKey = Play.registerWatcher(path, Evolutions::watchCallback, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
