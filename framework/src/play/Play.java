@@ -328,6 +328,11 @@ public class Play {
             Logger.info("Using default cookie domain: " + Http.Cookie.defaultDomain);
         }
 
+        // Dev Watcherservice
+        if (Play.mode.isDev() && watchService == null) {
+            initWatcherService();
+        }
+
         // Plugins
         pluginCollection.loadPlugins();
 
@@ -658,18 +663,18 @@ public class Play {
     }
 
 
-    public static final WatchService watchService;
+    public static volatile WatchService watchService = null;
     private static final ExecutorService watchServiceExecutor = Executors.newSingleThreadExecutor();
     private static final Map<WatchKey, WatchCallback> watchServiceCallbacks = new ConcurrentHashMap<>();
 
     static {
+
+    }
+
+    private static void initWatcherService() {
         try {
-            if (Play.mode.isDev()) {
-                watchService = FileSystems.getDefault().newWatchService();
-                watchServiceExecutor.submit(Play::watcherLoop);
-            } else {
-                watchService = null;
-            }
+            watchService = FileSystems.getDefault().newWatchService();
+            watchServiceExecutor.submit(Play::watcherLoop);
         } catch (IOException e) {
             throw new UnexpectedException(e);
         }
