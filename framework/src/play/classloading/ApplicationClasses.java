@@ -145,7 +145,9 @@ public class ApplicationClasses {
      */
     public void add(ApplicationClass applicationClass) {
         classes.put(applicationClass.name, applicationClass);
-        pathMap.put(applicationClass.javaFile.getRealFile().toPath(), applicationClass);
+        if (applicationClass.javaFile != null) {
+            pathMap.put(applicationClass.javaFile.getRealFile().toPath(), applicationClass);
+        }
     }
 
     /**
@@ -156,7 +158,9 @@ public class ApplicationClasses {
      */
     public void remove(ApplicationClass applicationClass) {
         classes.remove(applicationClass.name);
-        pathMap.remove(applicationClass.javaFile.getRealFile().toPath());
+        if (applicationClass.javaFile != null) {
+            pathMap.remove(applicationClass.javaFile.getRealFile().toPath());
+        }
     }
 
     /**
