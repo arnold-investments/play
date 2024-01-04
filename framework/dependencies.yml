@@ -53,14 +53,14 @@ require:    &allDependencies
     - org.bouncycastle -> bcpkix-jdk18on 1.73
     - org.apache.groovy -> groovy 3.0.17
     - org.apache.groovy -> groovy-xml 3.0.17
-    - org.eclipse.jdt -> org.eclipse.jdt.core 3.33.0
-    - org.eclipse.jdt -> ecj 3.33.0
+    - org.eclipse.jdt -> org.eclipse.jdt.core 3.36.0
+    - org.eclipse.jdt -> ecj 3.36.0
     - org.hibernate -> hibernate-core 5.6.5.Final.patched
     - net.bytebuddy -> byte-buddy 1.14.4
     - javax.persistence -> javax.persistence-api 2.2
     - org.hibernate.common -> hibernate-commons-annotations 5.1.2.Final
     - org.hibernate -> hibernate-validator 5.4.3.Final
-    - io.smallrye -> jandex 3.1.1
+    - io.smallrye -> jandex 3.1.6
     - org.jboss.logging -> jboss-logging 3.5.0.Final
     - org.jboss.spec.javax.transaction -> jboss-transaction-api_1.2_spec 1.1.1.Final
 #    - javax.xml.bind -> jaxb-api 2.3.1
@@ -71,9 +71,9 @@ require:    &allDependencies
     - org.hibernate -> hibernate-c3p0 5.6.15.Final
     - org.hibernate -> hibernate-ehcache 5.6.15.Final
     - com.mchange -> mchange-commons-java 0.2.20
-    - org.javassist -> javassist 3.29.2-GA
+    - org.javassist -> javassist 3.30.2-GA
     - io.netty -> netty 3.10.6.Final
-    - org.postgresql -> postgresql 42.6.0
+    - org.postgresql -> postgresql 42.7.1
     - org.slf4j -> slf4j-api 2.0.7
     - org.apache.logging.log4j -> log4j-slf4j2-impl 2.20.0
     - org.yaml -> snakeyaml 2.0
