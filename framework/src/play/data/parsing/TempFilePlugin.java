@@ -44,6 +44,15 @@ public class TempFilePlugin extends PlayPlugin {
 
     @Override
     public void onInvocationSuccess() {
+        cleanUpTmpFolder();
+    }
+
+    @Override
+    public void invocationFinally() {
+        cleanUpTmpFolder();
+    }
+
+    private void cleanUpTmpFolder() {
         File file = tempFolder.get();
         if (file != null) {
             tempFolder.remove();
