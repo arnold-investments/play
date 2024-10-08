@@ -43,7 +43,7 @@ public class TempFilePlugin extends PlayPlugin {
     }
 
     @Override
-    public void onInvocationSuccess() {
+    public void invocationFinally() {
         File file = tempFolder.get();
         if (file != null) {
             tempFolder.remove();
