@@ -15,18 +15,18 @@ public class BinaryBinder implements TypeBinder<Model.BinaryField> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Object bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) {
-        if (value == null || value.trim().length() == 0) {
+    public Object bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
+        if (value == null || value.trim().isEmpty()) {
             return null;
         }
         try {
             Request req = Request.current();
-            if (req != null && req.args != null) {
-                Model.BinaryField b = (Model.BinaryField) actualClass.newInstance();
+            if (req != null) {
+                Model.BinaryField b = (Model.BinaryField) actualClass.getDeclaredConstructor().newInstance();
                 List<Upload> uploads = (List<Upload>) req.args.get("__UPLOADS");
                 if(uploads != null){
                     for (Upload upload : uploads) {
-                        if (upload.getFieldName().equals(value) && upload.getFileName().trim().length() > 0) {
+                        if (upload.getFieldName().equals(value) && !upload.getFileName().trim().isEmpty()) {
                             b.set(upload.asStream(), upload.getContentType());
                             return b;
                         }

@@ -17,7 +17,7 @@ public class UploadBinder implements TypeBinder<Model.BinaryField> {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Object bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) {
+    public Object bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         if (value == null || value.isBlank()) {
             return null;
         }

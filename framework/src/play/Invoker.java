@@ -18,7 +18,6 @@ import com.jamonapi.MonitorFactory;
 
 import play.Play.Mode;
 import play.classloading.ApplicationClassloader;
-import play.classloading.enhancers.LocalvariablesNamesEnhancer.LocalVariablesNamesTracer;
 import play.exceptions.PlayException;
 import play.exceptions.UnexpectedException;
 import play.i18n.Lang;
@@ -243,7 +242,6 @@ public class Invoker {
          */
         public void after() {
             Play.pluginCollection.afterInvocation();
-            LocalVariablesNamesTracer.checkEmpty(); // detect bugs ....
         }
 
         /**
@@ -307,6 +305,9 @@ public class Invoker {
             if (waitInQueue != null) {
                 waitInQueue.stop();
             }
+
+            boolean skipFinally = false;
+
             try {
                 preInit();
                 if (init()) {
@@ -324,13 +325,24 @@ public class Invoker {
                     after();
                     onSuccess();
                 }
+            } catch (AsyncRequest e) {
+                skipFinally = true;
+                e.task.onRedeem(p -> {
+                    try {
+                        after();
+                    } finally {
+                        _finally();
+                    }
+                });
             } catch (Suspend e) {
                 suspend(e);
                 after();
             } catch (Throwable e) {
                 onException(e);
             } finally {
-                _finally();
+                if (!skipFinally) {
+                    _finally();
+                }
             }
         }
     }
@@ -368,6 +380,24 @@ public class Invoker {
         int core = Integer.parseInt(Play.configuration.getProperty("play.pool",
                 Play.mode == Mode.DEV ? "1" : ((Runtime.getRuntime().availableProcessors() + 1) + "")));
         executor = new ScheduledThreadPoolExecutor(core, new PThreadFactory("play"), new ThreadPoolExecutor.AbortPolicy());
+    }
+
+    public static class AsyncRequest extends PlayException {
+        Promise<?> task;
+
+        public AsyncRequest(Promise<?> task) {
+            this.task = task;
+        }
+
+        @Override
+        public String getErrorTitle() {
+            return "Async Request";
+        }
+
+        @Override
+        public String getErrorDescription() {
+            return "Just wait for it.";
+        }
     }
 
     /**

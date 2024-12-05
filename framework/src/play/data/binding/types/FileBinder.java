@@ -16,7 +16,7 @@ public class FileBinder implements TypeBinder<File> {
 
     @Override
     @SuppressWarnings("unchecked")
-    public File bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) {
+    public File bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         if (value == null || value.isBlank()) {
             return null;
         }

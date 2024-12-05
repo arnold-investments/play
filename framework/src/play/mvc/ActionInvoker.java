@@ -2,9 +2,6 @@ package play.mvc;
 
 import com.jamonapi.Monitor;
 import com.jamonapi.MonitorFactory;
-import org.apache.commons.javaflow.Continuation;
-import org.apache.commons.javaflow.bytecode.StackRecorder;
-import play.Invoker.Suspend;
 import play.Logger;
 import play.Play;
 import play.cache.Cache;
@@ -155,9 +152,9 @@ public class ActionInvoker {
                     cacheKey = cacheFor.id();
                     if ("".equals(cacheKey)) {
                         // Generate a cache key for this request
-                        cacheKey = cacheFor.generator().newInstance().generate(request);
+                        cacheKey = cacheFor.generator().getDeclaredConstructor().newInstance().generate(request);
                     }
-                    if(cacheKey != null && !"".equals(cacheKey)) {
+                    if(cacheKey != null && !cacheKey.isEmpty()) {
                     	actionResult = (Result) Cache.get(cacheKey);
                     }
                 }
@@ -169,7 +166,7 @@ public class ActionInvoker {
             } catch (Result result) {
                 actionResult = result;
                 // Cache it if needed
-                if (cacheKey != null && !"".equals(cacheKey)) {
+                if (cacheKey != null && !cacheKey.isEmpty()) {
                     Cache.set(cacheKey, actionResult, actionMethod.getAnnotation(CacheFor.class).value());
                 }
             } catch (JavaExecutionException e) {
@@ -432,9 +429,6 @@ public class ActionInvoker {
             if (o instanceof Map) {
                 Controller.renderTemplate((Map<String, Object>) o);
             }
-            if (o instanceof Object[]) {
-                Controller.render(o);
-            }
 
             Controller.renderHtml(o);
         }
@@ -479,11 +473,11 @@ public class ActionInvoker {
 
     static Object invoke(Method method, Object instance, Object ... realArgs) throws Exception {
         try {
-            if (isActionMethod(method)) {
-                return invokeWithContinuation(method, instance, realArgs);
-            } else {
+//            if (isActionMethod(method)) {
+//                return invokeWithContinuation(method, instance, realArgs);
+//            } else {
                 return method.invoke(instance, realArgs);
-            }
+//            }
         } catch (InvocationTargetException ex) {
             Throwable originalThrowable = ex.getTargetException();
 
@@ -507,72 +501,6 @@ public class ActionInvoker {
     static final String CONTINUATIONS_STORE_PARAMS = "__CONTINUATIONS_STORE_PARAMS";
     public static final String CONTINUATIONS_STORE_VALIDATIONS = "__CONTINUATIONS_STORE_VALIDATIONS";
     static final String CONTINUATIONS_STORE_VALIDATIONPLUGIN_KEYS = "__CONTINUATIONS_STORE_VALIDATIONPLUGIN_KEYS";
-
-    static Object invokeWithContinuation(Method method, Object instance, Object[] realArgs) throws Exception {
-        // Callback case
-        if (Request.current().args.containsKey(A)) {
-
-            // Action0
-            instance = Request.current().args.get(A);
-            Future f = (Future) Request.current().args.get(F);
-            Scope.RenderArgs renderArgs = (Scope.RenderArgs) Request.current().args.remove(ActionInvoker.CONTINUATIONS_STORE_RENDER_ARGS);
-            Scope.RenderArgs.current.set(renderArgs);
-            if (f == null) {
-                method = instance.getClass().getDeclaredMethod("invoke");
-                method.setAccessible(true);
-                return method.invoke(instance);
-            } else {
-                method = instance.getClass().getDeclaredMethod("invoke", Object.class);
-                method.setAccessible(true);
-                return method.invoke(instance, f.get());
-            }
-
-        }
-
-        // Continuations case
-        Continuation continuation = (Continuation) Request.current().args.get(C);
-        if (continuation == null) {
-            continuation = new Continuation(new StackRecorder((Runnable) null));
-        }
-
-        StackRecorder pStackRecorder = new StackRecorder(continuation.stackRecorder);
-        Object result = null;
-
-        StackRecorder old = pStackRecorder.registerThread();
-        try {
-            pStackRecorder.isRestoring = !pStackRecorder.isEmpty();
-
-            // Execute code
-            result = method.invoke(instance, realArgs);
-
-            if (pStackRecorder.isCapturing) {
-                if (pStackRecorder.isEmpty()) {
-                    throw new IllegalStateException("stack corruption. Is " + method + " instrumented for javaflow?");
-                }
-                Object trigger = pStackRecorder.value;
-                Continuation nextContinuation = new Continuation(pStackRecorder);
-                Request.current().args.put(C, nextContinuation);
-
-                if (trigger instanceof Long) {
-                    throw new Suspend((Long) trigger);
-                }
-                if (trigger instanceof Integer) {
-                    throw new Suspend(((Integer) trigger).longValue());
-                }
-                if (trigger instanceof Future) {
-                    throw new Suspend((Future) trigger);
-                }
-
-                throw new UnexpectedException("Unexpected continuation trigger -> " + trigger);
-            } else {
-                Request.current().args.remove(C);
-            }
-        } finally {
-            pStackRecorder.deregisterThread(old);
-        }
-
-        return result;
-    }
 
     public static Object[] getActionMethod(String fullAction) {
         Method actionMethod = null;

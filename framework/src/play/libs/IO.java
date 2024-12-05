@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Properties;
 
@@ -100,7 +101,7 @@ public class IO {
     public static List<String> readLines(InputStream is) {
         List<String> lines = null;
         try {
-            lines = IOUtils.readLines(is);
+            lines = IOUtils.readLines(is, Charset.defaultCharset());
         } catch (IOException ex) {
             throw new UnexpectedException(ex);
         }

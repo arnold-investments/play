@@ -22,6 +22,6 @@ public interface TypeBinder<T> {
      * @throws ParseException if parameter has invalid format (e.g. date)
      * @throws Exception deprecated! Will be removed in Play 1.5
      */
-    Object bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) throws Exception;
+    Object bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) throws Exception;
 
 }

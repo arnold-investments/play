@@ -15,7 +15,7 @@ public class DateTimeBinder implements TypeBinder<DateTime> {
     private static final DateBinder dateBinder = new DateBinder();
 
     @Override
-    public DateTime bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) throws Exception {
+    public DateTime bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) throws Exception {
         if (value == null || value.isBlank()) {
             return null;
         }

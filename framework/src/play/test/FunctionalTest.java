@@ -6,6 +6,8 @@ import com.ning.http.client.multipart.MultipartBody;
 import com.ning.http.client.multipart.MultipartUtils;
 import com.ning.http.client.multipart.Part;
 import com.ning.http.client.multipart.StringPart;
+import java.net.URI;
+import java.net.URISyntaxException;
 import org.junit.Before;
 import play.Invoker;
 import play.Invoker.InvocationContext;
@@ -81,8 +83,8 @@ public abstract class FunctionalTest extends BaseTest {
             if (location.contains("http")) {
                 java.net.URL redirectedUrl;
                 try {
-                    redirectedUrl = new java.net.URL(redirectedTo.value());
-                } catch (MalformedURLException e) {
+                    redirectedUrl = new URI(redirectedTo.value()).toURL();
+                } catch (URISyntaxException | MalformedURLException e) {
                     throw new RuntimeException(e);
                 }
                 response = GET(redirectedUrl.getPath());

@@ -16,6 +16,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Serial;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -59,14 +61,14 @@ public class FirePhoque {
         }
         
         try {
-            in = new BufferedReader(new InputStreamReader(new URL(urlStringBuilder.toString()).openStream(), StandardCharsets.UTF_8));
+            in = new BufferedReader(new InputStreamReader(new URI(urlStringBuilder.toString()).toURL().openStream(), StandardCharsets.UTF_8));
             String marker = in.readLine();
             if (!marker.equals("---")) {
                 throw new RuntimeException("Oops");
             }
             root = new File(in.readLine());
             selenium = in.readLine();
-            tests = new ArrayList<String>();
+            tests = new ArrayList<>();
             String line;
             while ((line = in.readLine()) != null) {
                 tests.add(line);
@@ -81,39 +83,30 @@ public class FirePhoque {
 
         // Let's tweak WebClient
 
-        String headlessBrowser = System.getProperty("headlessBrowser", "FIREFOX_38");
-        BrowserVersion browserVersion;
-        if ("CHROME".equals(headlessBrowser)) {
-            browserVersion = BrowserVersion.CHROME;
-        } else if ("FIREFOX_38".equals(headlessBrowser)) {
-            browserVersion = BrowserVersion.FIREFOX_38;  
-        }    else if ("INTERNET_EXPLORER".equals(headlessBrowser)) {
-            browserVersion = BrowserVersion.INTERNET_EXPLORER;
-        }    else if ("INTERNET_EXPLORER_11".equals(headlessBrowser)) {
-            browserVersion = BrowserVersion.INTERNET_EXPLORER_11;
-        } else if ("EDGE".equals(headlessBrowser)) {
-            browserVersion = BrowserVersion.EDGE;
-        } else {
-            browserVersion = BrowserVersion.FIREFOX_45;
-        }
+        String headlessBrowser = System.getProperty("headlessBrowser", "FIREFOX_45");
+        BrowserVersion browserVersion = switch (headlessBrowser) {
+	        case "CHROME" -> BrowserVersion.CHROME;
+	        case "EDGE" -> BrowserVersion.EDGE;
+	        case null, default -> BrowserVersion.FIREFOX_45;
+        };
 
-        WebClient firephoque = new WebClient(browserVersion);
+	    WebClient firephoque = new WebClient(browserVersion);
         firephoque.setPageCreator(new DefaultPageCreator() {
-	    /**
-	     * Generated Serial version UID
-	     */
-	    private static final long serialVersionUID = 6690993309672446834L;
+            /**
+            * Generated Serial version UID
+            */
+            @Serial
+            private static final long serialVersionUID = 6690993309672446834L;
 
-	    @Override
+            @Override
             public Page createPage(WebResponse wr, WebWindow ww) throws IOException {
-                Page page = createHtmlPage(wr, ww);
-                return page;
+		        return createHtmlPage(wr, ww);
             }
         });
         
         firephoque.getOptions().setThrowExceptionOnFailingStatusCode(false);
         
-        Integer timeout = Integer.valueOf(System.getProperty("webclientTimeout", "-1"));
+        int timeout = Integer.parseInt(System.getProperty("webclientTimeout", "-1"));
         if(timeout >= 0){
           firephoque.getOptions().setTimeout(timeout);
         }
@@ -180,7 +173,7 @@ public class FirePhoque {
         }
         System.out.println("~ " + tests.size() + " test" + (tests.size() != 1 ? "s" : "") + " to run:");
         System.out.println("~");
-        firephoque.openWindow(new URL(app + "/@tests/init"), "headless");
+        firephoque.openWindow(new URI(app + "/@tests/init").toURL(), "headless");
         boolean ok = true;
         for (String test : tests) {
             long start = System.currentTimeMillis();
@@ -192,9 +185,9 @@ public class FirePhoque {
             System.out.print("    ");
             URL url;
             if (test.endsWith(".class")) {
-                url = new URL(app + "/@tests/" + test);
+                url = new URI(app + "/@tests/" + test).toURL();
             } else {
-                url = new URL(app + "" + selenium + "?baseUrl=" + app + "&test=/@tests/" + test + ".suite&auto=true&resultsUrl=/@tests/" + test);
+                url = new URI(app + "" + selenium + "?baseUrl=" + app + "&test=/@tests/" + test + ".suite&auto=true&resultsUrl=/@tests/" + test).toURL();
             }
             firephoque.openWindow(url, "headless");
             firephoque.waitForBackgroundJavaScript(5 * 60 * 1000);
@@ -229,7 +222,7 @@ public class FirePhoque {
                 System.out.println(seconds + "s");
             }
         }
-        firephoque.openWindow(new URL(app + "/@tests/end?result=" + (ok ? "passed" : "failed")), "headless");
+        firephoque.openWindow(new URI(app + "/@tests/end?result=" + (ok ? "passed" : "failed")).toURL(), "headless");
         
         firephoque.close();
     }

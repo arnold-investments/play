@@ -1,5 +1,6 @@
 package play.db.helper;
 
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -141,14 +142,14 @@ public class JdbcResultFactories {
         @Override
         public T create(ResultSet result) throws SQLException {
             try {
-                T obj = objectClass.newInstance();
+                T obj = objectClass.getDeclaredConstructor().newInstance();
                 for (String field : fields) {
                     Object value = result.getObject(field);
                     if (value instanceof BigDecimal) value = ((BigDecimal) value).longValue();
                     objectClass.getDeclaredField(field).set(obj, value);
                 }
                 return obj;
-            } catch (InstantiationException | NoSuchFieldException | IllegalAccessException ex) {
+            } catch (InvocationTargetException | NoSuchMethodException | InstantiationException | NoSuchFieldException | IllegalAccessException ex) {
                 throw new RuntimeException(ex);
             }
         }

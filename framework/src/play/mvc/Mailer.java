@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,7 +28,7 @@ import org.apache.commons.mail.MultiPartEmail;
 import org.apache.commons.mail.SimpleEmail;
 import play.Logger;
 import play.Play;
-import play.classloading.enhancers.LocalvariablesNamesEnhancer.LocalVariablesSupport;
+
 import play.exceptions.MailException;
 import play.exceptions.TemplateNotFoundException;
 import play.exceptions.UnexpectedException;
@@ -41,7 +43,7 @@ import play.vfs.VirtualFile;
 /**
  * Application mailer support
  */
-public class Mailer implements LocalVariablesSupport {
+public class Mailer {
 
     protected static final ThreadLocal<Map<String, Object>> infos = new ThreadLocal<>();
 
@@ -302,8 +304,8 @@ public class Mailer implements LocalVariablesSupport {
         if (img == null) {
             // Not a local image, check for a distant image
             try {
-                url = new URL(urlString);
-            } catch (MalformedURLException e1) {
+                url = new URI(urlString).toURL();
+            } catch (URISyntaxException | MalformedURLException e1) {
                 throw new UnexpectedException("Invalid URL '" + urlString + "'", e1);
             }
 

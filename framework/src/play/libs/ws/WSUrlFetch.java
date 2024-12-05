@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
@@ -112,7 +113,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse get() {
             try {
-                return new HttpUrlfetchResponse(prepare(new URL(getPreparedUrl("GET")), "GET"));
+                return new HttpUrlfetchResponse(prepare(new URI(getPreparedUrl("GET")).toURL(), "GET"));
             } catch (Exception e) {
                 Logger.error(e.toString());
                 throw new RuntimeException(e);
@@ -122,7 +123,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse patch() {
             try {
-                HttpURLConnection conn = prepare(new URL(getPreparedUrl("PATCH")), "PATCH");
+                HttpURLConnection conn = prepare(new URI(getPreparedUrl("PATCH")).toURL(), "PATCH");
                 return new HttpUrlfetchResponse(conn);
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -133,7 +134,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse post() {
             try {
-                HttpURLConnection conn = prepare(new URL(getPreparedUrl("POST")), "POST");
+                HttpURLConnection conn = prepare(new URI(getPreparedUrl("POST")).toURL(), "POST");
                 return new HttpUrlfetchResponse(conn);
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -144,7 +145,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse put() {
             try {
-                return new HttpUrlfetchResponse(prepare(new URL(getPreparedUrl("PUT")), "PUT"));
+                return new HttpUrlfetchResponse(prepare(new URI(getPreparedUrl("PUT")).toURL(), "PUT"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -154,7 +155,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse delete() {
             try {
-                return new HttpUrlfetchResponse(prepare(new URL(getPreparedUrl("DELETE")), "DELETE"));
+                return new HttpUrlfetchResponse(prepare(new URI(getPreparedUrl("DELETE")).toURL(), "DELETE"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -164,7 +165,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse options() {
             try {
-                return new HttpUrlfetchResponse(prepare(new URL(getPreparedUrl("OPTIONS")), "OPTIONS"));
+                return new HttpUrlfetchResponse(prepare(new URI(getPreparedUrl("OPTIONS")).toURL(), "OPTIONS"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -174,7 +175,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse head() {
             try {
-                return new HttpUrlfetchResponse(prepare(new URL(getPreparedUrl("HEAD")), "HEAD"));
+                return new HttpUrlfetchResponse(prepare(new URI(getPreparedUrl("HEAD")).toURL(), "HEAD"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -184,7 +185,7 @@ public class WSUrlFetch implements WSImpl {
         @Override
         public HttpResponse trace() {
             try {
-                return new HttpUrlfetchResponse(prepare(new URL(getPreparedUrl("TRACE")), "TRACE"));
+                return new HttpUrlfetchResponse(prepare(new URI(getPreparedUrl("TRACE")).toURL(), "TRACE"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

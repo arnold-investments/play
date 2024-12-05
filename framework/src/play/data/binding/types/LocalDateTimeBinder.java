@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 public class LocalDateTimeBinder implements TypeBinder<LocalDateTime> {
 
     @Override
-    public LocalDateTime bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) {
+    public LocalDateTime bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         return value != null && !value.isBlank() ? LocalDateTime.parse(value) : null;
     }
 }

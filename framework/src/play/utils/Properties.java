@@ -7,7 +7,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Serial;
+import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.HashMap;
 
@@ -18,7 +22,7 @@ import java.util.HashMap;
  * type helper
  */
 public class Properties extends HashMap<String, String> {
-
+    @Serial
     private static final long serialVersionUID = 1L;
 
     public synchronized void load(InputStream is) throws IOException {
@@ -73,7 +77,7 @@ public class Properties extends HashMap<String, String> {
         }
         BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(out, encoding));
         for (String key : keySet()) {
-            if (key.length() > 0) {
+            if (!key.isEmpty()) {
                 wr.write(key + "=" + get(key) + System.getProperties().getProperty("line.separator"));
             }
         }
@@ -83,7 +87,7 @@ public class Properties extends HashMap<String, String> {
 
     public boolean getBoolean(String key) throws IllegalArgumentException {
         String s = get(key);
-        if (s == null || "".equals(s)) {
+        if (s == null || s.isEmpty()) {
             throw new IllegalArgumentException("Setting must be an boolean (values:true/false/yes/no/on/off) : " + key);
         }
         s = s.trim().toLowerCase();
@@ -92,7 +96,7 @@ public class Properties extends HashMap<String, String> {
 
     public boolean getBoolean(String key, boolean defval) {
         String s = get(key);
-        if (s == null || "".equals(s)) {
+        if (s == null || s.isEmpty()) {
             return defval;
         }
         s = s.trim().toLowerCase();
@@ -101,21 +105,25 @@ public class Properties extends HashMap<String, String> {
 
     public Object getClassInstance(String key) throws IllegalArgumentException {
         String s = get(key);
-        if (s == null || "".equals(s)) {
+        if (s == null || s.isEmpty()) {
             throw new IllegalArgumentException("Setting " + key + " must be a valid classname  : " + key);
         }
         try {
-            return Class.forName(s).newInstance();
+            return Class.forName(s).getDeclaredConstructor().newInstance();
+        } catch(NoSuchMethodException nme) {
+            throw new IllegalArgumentException(s + ": no such method exception for key " + key, nme);
         } catch (ClassNotFoundException nfe) {
             throw new IllegalArgumentException(s + ": invalid class name for key " + key, nfe);
         } catch (InstantiationException | IllegalAccessException e) {
             throw new IllegalArgumentException(s + ": class could not be reflected " + s, e);
+        } catch (InvocationTargetException ite) {
+            throw new IllegalArgumentException(s + ": class could not be invoked " + s, ite);
         }
     }
 
-    public Object getClassInstance(String key, Object defaultinstance)
+    public Object getClassInstance(String key, Object defaultInstance)
             throws IllegalArgumentException {
-        return (containsKey(key) ? getClassInstance(key) : defaultinstance);
+        return (containsKey(key) ? getClassInstance(key) : defaultInstance);
     }
 
     public double getDouble(String key) throws IllegalArgumentException {
@@ -127,10 +135,10 @@ public class Properties extends HashMap<String, String> {
         }
     }
 
-    public double getDouble(String key, long defval) throws IllegalArgumentException {
+    public double getDouble(String key, long defVal) throws IllegalArgumentException {
         String s = get(key);
         if (s == null) {
-            return defval;
+            return defVal;
         }
         try {
             return Double.parseDouble(s);
@@ -220,8 +228,8 @@ public class Properties extends HashMap<String, String> {
 
     public URL getURL(String key) throws IllegalArgumentException {
         try {
-            return new URL(get(key));
-        } catch (MalformedURLException e) {
+            return new URI(get(key)).toURL();
+        } catch (URISyntaxException | MalformedURLException e) {
             throw new IllegalArgumentException("Property " + key + " must be a valid URL (" + get(key) + ")", e);
         }
     }

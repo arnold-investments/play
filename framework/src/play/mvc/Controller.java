@@ -13,25 +13,19 @@ import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
 import java.util.concurrent.Future;
-import org.apache.commons.javaflow.Continuation;
-import org.apache.commons.javaflow.bytecode.StackRecorder;
+
 import org.w3c.dom.Document;
+import play.Invoker;
 import play.Invoker.Suspend;
 import play.Logger;
 import play.Play;
 import play.classloading.ApplicationClasses.ApplicationClass;
-import play.classloading.enhancers.ContinuationEnhancer;
 import play.classloading.enhancers.ControllersEnhancer.ControllerInstrumentation;
 import play.classloading.enhancers.ControllersEnhancer.ControllerSupport;
-import play.classloading.enhancers.LocalvariablesNamesEnhancer;
-import play.classloading.enhancers.LocalvariablesNamesEnhancer.LocalVariablesNamesTracer;
-import play.classloading.enhancers.LocalvariablesNamesEnhancer.LocalVariablesSupport;
 import play.data.binding.Unbinder;
 import play.data.validation.Validation;
-import play.data.validation.ValidationPlugin;
-import play.exceptions.ContinuationsException;
+
 import play.exceptions.NoRouteFoundException;
 import play.exceptions.PlayException;
 import play.exceptions.TemplateNotFoundException;
@@ -68,7 +62,7 @@ import play.vfs.VirtualFile;
  *
  * This is the class that your controllers should extend in most cases.
  */
-public class Controller implements PlayController, ControllerSupport, LocalVariablesSupport {
+public class Controller implements PlayController, ControllerSupport {
 
     /**
      * The current HTTP request: the message sent by the client to the server.
@@ -764,18 +758,11 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
      *
      * @param templateName
      *            The template name
-     * @param args
-     *            The template data
      */
-    protected static void renderTemplate(String templateName, Object... args) {
+    protected static void renderTemplate(String templateName) {
         // Template datas
         Map<String, Object> templateBinding = new HashMap<>(16);
-        for (Object o : args) {
-            List<String> names = LocalVariablesNamesTracer.getAllLocalVariableNames(o);
-            for (String name : names) {
-                templateBinding.put(name, o);
-            }
-        }
+
         renderTemplate(templateName, templateBinding);
     }
 
@@ -827,17 +814,11 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
     /**
      * Render the corresponding template (@see <code>template()</code>).
      *
-     * @param args
-     *            The template data
      */
-    protected static void render(Object... args) {
-        String templateName = null;
-        if (args.length > 0 && args[0] instanceof String && LocalVariablesNamesTracer.getAllLocalVariableNames(args[0]).isEmpty()) {
-            templateName = args[0].toString();
-        } else {
-            templateName = template();
-        }
-        renderTemplate(templateName, args);
+    protected static void render() {
+        String templateName = template();
+
+        renderTemplate(templateName);
     }
 
     /**
@@ -945,117 +926,6 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
     }
 
     /**
-     * Call the parent action adding this objects to the params scope
-     *
-     * @param args
-     *            List of parameters
-     * @deprecated
-     */
-    @Deprecated
-    protected static void parent(Object... args) {
-        Map<String, Object> map = new HashMap<>(16);
-        for (Object o : args) {
-            List<String> names = LocalVariablesNamesTracer.getAllLocalVariableNames(o);
-            for (String name : names) {
-                map.put(name, o);
-            }
-        }
-        parent(map);
-    }
-
-    /**
-     * Call the parent method * @deprecated
-     */
-    @Deprecated
-    protected static void parent() {
-        parent(new HashMap<String, Object>(0));
-    }
-
-    /**
-     * Call the parent action adding this objects to the params scope
-     * 
-     * @param map
-     *            List of objects to the params scop
-     * @deprecated
-     */
-    @Deprecated
-    protected static void parent(Map<String, Object> map) {
-        try {
-            Method method = Http.Request.current().invokedMethod;
-            String name = method.getName();
-            Class<?> clazz = method.getDeclaringClass().getSuperclass();
-            Method superMethod = null;
-            while (!clazz.getName().equals("play.mvc.Controller") && !clazz.getName().equals("java.lang.Object")) {
-                for (Method m : clazz.getDeclaredMethods()) {
-                    if (m.getName().equalsIgnoreCase(name) && Modifier.isPublic(m.getModifiers()) && Modifier.isStatic(m.getModifiers())) {
-                        superMethod = m;
-                        break;
-                    }
-                }
-                if (superMethod != null) {
-                    break;
-                }
-                clazz = clazz.getSuperclass();
-            }
-            if (superMethod == null) {
-                throw new RuntimeException("PAF");
-            }
-            Map<String, String> mapss = new HashMap<>(map.size());
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                Object value = entry.getValue();
-                mapss.put(entry.getKey(), value == null ? null : value.toString());
-            }
-            Scope.Params.current().__mergeWith(mapss);
-            ControllerInstrumentation.initActionCall();
-            Java.invokeStatic(superMethod, ActionInvoker.getActionMethodArgs(superMethod, null));
-        } catch (InvocationTargetException ex) {
-            // It's a Result ? (expected)
-            if (ex.getTargetException() instanceof Result) {
-                throw (Result) ex.getTargetException();
-            } else {
-                throw new RuntimeException(ex.getTargetException());
-            }
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Suspend the current request for a specified amount of time.
-     *
-     * <p>
-     * <b>Important:</b> The method will not resume on the line after you call this. The method will be called again as
-     * if there was a new HTTP request.
-     *
-     * @param timeout
-     *            Period of time to wait, e.g. "1h" means 1 hour.
-     * @deprecated
-     */
-    @Deprecated
-    protected static void suspend(String timeout) {
-        suspend(1000 * Time.parseDuration(timeout));
-    }
-
-    /**
-     * Suspend the current request for a specified amount of time (in milliseconds).
-     *
-     * <p>
-     * <b>Important:</b> The method will not resume on the line after you call this. The method will be called again as
-     * if there was a new HTTP request.
-     *
-     * @param millis
-     *            Number of milliseconds to wait until trying again.
-     * @deprecated
-     */
-    @Deprecated
-    protected static void suspend(int millis) {
-        Request.current().isNew = false;
-        throw new Suspend(millis);
-    }
-
-    /**
      * Suspend this request and wait for the task completion
      *
      * <p>
@@ -1073,199 +943,10 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
         throw new Suspend(task);
     }
 
-    protected static void await(String timeout) {
-        await(1000 * Time.parseDuration(timeout));
-    }
+    protected static <T> void await(F.Promise<T> promise, F.Action<T> callback) {
+        promise.onRedeem(p -> callback.invoke(p.getOrNull()));
 
-    protected static void await(String timeout, F.Action0 callback) {
-        await(1000 * Time.parseDuration(timeout), callback);
-    }
-
-    protected static void await(int millis) {
-        Request.current().isNew = false;
-        verifyContinuationsEnhancement();
-        storeOrRestoreDataStateForContinuations(null);
-        Continuation.suspend(millis);
-    }
-
-    /**
-     * Used to store data before Continuation suspend and restore after.
-     *
-     * If isRestoring == null, the method will try to resolve it.
-     *
-     * important: when using isRestoring == null you have to KNOW that continuation suspend is going to happen and that
-     * this method is called twice for this single continuation suspend operation for this specific request.
-     *
-     * @param isRestoring
-     *            true if restoring, false if storing, and null if you don't know
-     */
-    private static void storeOrRestoreDataStateForContinuations(Boolean isRestoring) {
-
-        if (isRestoring == null) {
-            // Sometimes, due to how continuations suspends/restarts the code,
-            // we do not
-            // know when calling this method if we're suspending or restoring.
-
-            String continuationStateKey = "__storeOrRestoreDataStateForContinuations_started";
-            if (Http.Request.current().args.remove(continuationStateKey) != null) {
-                isRestoring = true;
-            } else {
-                Http.Request.current().args.put(continuationStateKey, true);
-                isRestoring = false;
-            }
-        }
-
-        if (isRestoring) {
-            // we are restoring after suspend
-
-            // localVariablesState
-            Stack<Map<String, Object>> localVariablesState = (Stack<Map<String, Object>>) Http.Request.current().args
-                    .remove(ActionInvoker.CONTINUATIONS_STORE_LOCAL_VARIABLE_NAMES);
-            LocalvariablesNamesEnhancer.LocalVariablesNamesTracer.setLocalVariablesStateAfterAwait(localVariablesState);
-
-            // renderArgs
-            Scope.RenderArgs renderArgs = (Scope.RenderArgs) Request.current().args.remove(ActionInvoker.CONTINUATIONS_STORE_RENDER_ARGS);
-            Scope.RenderArgs.current.set(renderArgs);
-
-            // Params
-            // We know that the params are partially reprocessed during
-            // awake(Before now), but here we restore the correct values as
-            // they were when we performed the await();
-            Map<String, String[]> params = (Map<String, String[]>) Request.current().args.remove(ActionInvoker.CONTINUATIONS_STORE_PARAMS);
-            Scope.Params.current().all().clear();
-            if (params != null) {
-                Scope.Params.current().all().putAll(params);
-            }
-            // Validations
-            Validation validation = (Validation) Request.current().args.remove(ActionInvoker.CONTINUATIONS_STORE_VALIDATIONS);
-            Validation.current.set(validation);
-            ValidationPlugin.keys
-                    .set((Map<Object, String>) Request.current().args.remove(ActionInvoker.CONTINUATIONS_STORE_VALIDATIONPLUGIN_KEYS));
-
-        } else {
-            // we are storing before suspend
-
-            // localVariablesState
-            Request.current().args.put(ActionInvoker.CONTINUATIONS_STORE_LOCAL_VARIABLE_NAMES,
-                    LocalVariablesNamesTracer.getLocalVariablesStateBeforeAwait());
-
-            // renderArgs
-            Request.current().args.put(ActionInvoker.CONTINUATIONS_STORE_RENDER_ARGS, Scope.RenderArgs.current());
-
-            // Params
-            // Store the actual params values so we can restore the exact same
-            // state when awaking.
-            Request.current().args.put(ActionInvoker.CONTINUATIONS_STORE_PARAMS, new HashMap<>(Scope.Params.current().data));
-
-            // Validations
-            Request.current().args.put(ActionInvoker.CONTINUATIONS_STORE_VALIDATIONS, Validation.current());
-            Request.current().args.put(ActionInvoker.CONTINUATIONS_STORE_VALIDATIONPLUGIN_KEYS, ValidationPlugin.keys.get());
-
-        }
-    }
-
-    protected static void await(int millis, F.Action0 callback) {
-        Request.current().isNew = false;
-        Request.current().args.put(ActionInvoker.A, callback);
-        Request.current().args.put(ActionInvoker.CONTINUATIONS_STORE_RENDER_ARGS, Scope.RenderArgs.current());
-        throw new Suspend(millis);
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static <T> T await(Future<T> future) {
-
-        if (future != null) {
-            Request.current().args.put(ActionInvoker.F, future);
-        } else if (Request.current().args.containsKey(ActionInvoker.F)) {
-            // Since the continuation will restart in this code that isn't
-            // instrumented by javaflow,
-            // we need to reset the state manually.
-            StackRecorder.get().isCapturing = false;
-            StackRecorder.get().isRestoring = false;
-            StackRecorder.get().value = null;
-            future = (Future<T>) Request.current().args.get(ActionInvoker.F);
-
-            // Now reset the Controller invocation context
-            ControllerInstrumentation.stopActionCall();
-            storeOrRestoreDataStateForContinuations(true);
-        } else {
-            throw new UnexpectedException("Lost promise for " + Http.Request.current() + "!");
-        }
-
-        if (future.isDone()) {
-            try {
-                return future.get();
-            } catch (Exception e) {
-                throw new UnexpectedException(e);
-            }
-        } else {
-            Request.current().isNew = false;
-            verifyContinuationsEnhancement();
-            storeOrRestoreDataStateForContinuations(false);
-            Continuation.suspend(future);
-            return null;
-        }
-    }
-
-    /**
-     * Verifies that all application-code is properly enhanced. "application code" is the code on the callstack after
-     * leaving actionInvoke into the app, and before reentering Controller.await
-     */
-    private static void verifyContinuationsEnhancement() {
-        // only check in dev mode..
-        if (Play.mode == Play.Mode.PROD) {
-            return;
-        }
-
-        try {
-            throw new Exception();
-        } catch (Exception e) {
-            boolean haveSeenFirstApplicationClass = false;
-            for (StackTraceElement ste : e.getStackTrace()) {
-                String className = ste.getClassName();
-
-                if (!haveSeenFirstApplicationClass) {
-                    haveSeenFirstApplicationClass = Play.classes.getApplicationClass(className) != null;
-                    // when haveSeenFirstApplicationClass is set to true, we are
-                    // entering the user application code..
-                }
-
-                if (haveSeenFirstApplicationClass) {
-                    if (shouldBeCheckedForEnhancement(className)) {
-                        // we're back into the play framework code...
-                        return; // done checking
-                    } else {
-                        // is this class enhanced?
-                        boolean enhanced = ContinuationEnhancer.isEnhanced(className);
-                        if (!enhanced) {
-                            throw new ContinuationsException(
-                                    "Cannot use await/continuations when not all application classes on the callstack are properly enhanced. The following class is not enhanced: "
-                                            + className);
-                        }
-                    }
-                }
-            }
-
-        }
-    }
-
-
-    /**
-     * Checks if the classname is from the jdk, sun or play package and therefore should not be checked for enhancement
-     * @param className
-     * @return boolean
-     */
-    static boolean shouldBeCheckedForEnhancement(String className)
-    {
-        return className.startsWith("jdk.") || className.startsWith("sun.") || className.startsWith("play.");
-    }
-
-    protected static <T> void await(Future<T> future, F.Action<T> callback) {
-        Request.current().isNew = false;
-        Request.current().args.put(ActionInvoker.F, future);
-        Request.current().args.put(ActionInvoker.A, callback);
-        Request.current().args.put(ActionInvoker.CONTINUATIONS_STORE_RENDER_ARGS, Scope.RenderArgs.current());
-        throw new Suspend(future);
+        throw new Invoker.AsyncRequest(promise);
     }
 
     /**
@@ -1284,7 +965,7 @@ public class Controller implements PlayController, ControllerSupport, LocalVaria
      * }
      * String url = action.url;
      * </code>
-     * 
+     *
      * @return The ActionDefiniton
      */
     protected static ActionDefinition reverse() {

@@ -24,7 +24,6 @@ require:    &allDependencies
     - org.apache.commons -> commons-email 1.5
     - commons-fileupload 1.5
     - commons-io 2.11.0
-    - com.google.code.maven-play-plugin.org.apache.commons -> commons-javaflow 1590792
     - org.apache.commons -> commons-lang3 3.12.0
     - org.apache.commons -> commons-text 1.10.0
     - commons-logging 1.2

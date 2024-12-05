@@ -55,6 +55,7 @@
         <mkdir dir="classes"/>
         <javac encoding="utf-8" srcdir="src" destdir="classes" debug="true" source="22" target="22" includeantruntime="true">
             <classpath refid="project.classpath" />
+            <!-- <compilerarg value="-Xlint:deprecation" /> -->
         </javac>
         <copy todir="classes">
             <fileset dir="src">

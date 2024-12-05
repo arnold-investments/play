@@ -80,7 +80,7 @@ public class HttpServerPipelineFactory implements ChannelPipelineFactory {
             }
         });
         if (ChannelHandler.class.isAssignableFrom(clazz))
-            return (ChannelHandler)clazz.newInstance(); 
+            return (ChannelHandler)clazz.getDeclaredConstructor().newInstance();
         return null;
     }
 }

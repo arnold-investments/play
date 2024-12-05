@@ -21,7 +21,7 @@ public @interface As {
 
     final class DEFAULT implements TypeBinder<Object>, TypeUnbinder<Object> {
         @Override
-        public Object bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) {
+        public Object bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
             throw new UnsupportedOperationException("Not supported.");
         }
 

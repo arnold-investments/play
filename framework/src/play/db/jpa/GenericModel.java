@@ -328,30 +328,6 @@ public class GenericModel extends JPABase {
         return (T) this;
     }
 
-    /**
-     * Validate and store the entity
-     * 
-     * @return true if successful
-     */
-    public boolean validateAndSave() {
-        if (Validation.current().valid(this).ok) {
-            save();
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Validate and create the entity
-     * 
-     * @return true if successful
-     */
-    public boolean validateAndCreate() {
-        if (Validation.current().valid(this).ok) {
-            return create();
-        }
-        return false;
-    }
 
     /**
      * store (ie insert) the entity.

@@ -17,7 +17,7 @@ public class DateBinder implements TypeBinder<Date> {
     public static final String ISO8601 = "'ISO8601:'yyyy-MM-dd'T'HH:mm:ssZ";
 
     @Override
-    public Date bind(String name, Annotation[] annotations, String value, Class actualClass, Type genericType) throws Exception {
+    public Date bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) throws Exception {
         if (value == null || value.isBlank()) {
             return null;
         }

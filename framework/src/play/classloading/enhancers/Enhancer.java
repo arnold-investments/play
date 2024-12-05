@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -97,8 +99,8 @@ public abstract class Enhancer {
                 String cname = className.replace('.', '/') + ".class";
                 try {
                     // return new File(cname).toURL();
-                    return new URL("file:/ApplicationClassesClasspath/" + cname);
-                } catch (MalformedURLException e) {
+                    return new URI("file:/ApplicationClassesClasspath/" + cname).toURL();
+                } catch (URISyntaxException | MalformedURLException ignore) {
                 }
             }
             return null;

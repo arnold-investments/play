@@ -10,6 +10,8 @@ import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.instrument.ClassDefinition;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
@@ -82,11 +84,11 @@ public class ApplicationClassloader extends ClassLoader {
         }
         pathHash = computePathHash();
         try {
-            CodeSource codeSource = new CodeSource(new URL("file:" + Play.applicationPath.getAbsolutePath()), (Certificate[]) null);
+            CodeSource codeSource = new CodeSource(new URI("file:" + Play.applicationPath.getAbsolutePath()).toURL(), (Certificate[]) null);
             Permissions permissions = new Permissions();
             permissions.add(new AllPermission());
             protectionDomain = new ProtectionDomain(codeSource, permissions);
-        } catch (MalformedURLException e) {
+        } catch (URISyntaxException | MalformedURLException e) {
             throw new UnexpectedException(e);
         }
     }

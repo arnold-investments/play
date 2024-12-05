@@ -17,6 +17,7 @@
         <mkdir dir="lib" />
         <javac srcdir="src" destdir="tmp/classes" source="22" target="22" includeantruntime="false">
             <classpath refid="project.classpath" />
+            <compilerarg value="-Xlint:deprecation" />
         </javac>
         <copy todir="tmp/classes">
             <fileset dir="src">

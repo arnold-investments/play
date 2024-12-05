@@ -1,7 +1,6 @@
 package play.libs;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -22,8 +21,6 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 import play.Logger;
 
 public class F {
-
-
     /**
      * A Function with no arguments.
      */
@@ -139,10 +136,6 @@ public class F {
             }
         }
 
-        public static <T> Promise<List<T>> waitAll(Promise<T>... promises) {
-            return waitAll(Arrays.asList(promises));
-        }
-
         public static <T> Promise<List<T>> waitAll(final Collection<Promise<T>> promises) {
             final CountDownLatch waitAllLock = new CountDownLatch(promises.size());
             final Promise<List<T>> result = new Promise<List<T>>() {
@@ -212,65 +205,6 @@ public class F {
             return result;
         }
 
-        public static <A, B> Promise<F.Tuple<A, B>> wait2(Promise<A> tA, Promise<B> tB) {
-            final Promise<F.Tuple<A, B>> result = new Promise<>();
-            Promise<List<Object>> t = waitAll(new Promise[]{tA, tB});
-            t.onRedeem(completed -> {
-                List<Object> values = completed.getOrNull();
-                if(values != null) {
-                    result.invoke(new Tuple((A) values.get(0), (B) values.get(1)));
-                }
-                else {
-                    result.invokeWithException(completed.exception);
-                }
-            });
-            return result;
-        }
-
-        public static <A, B, C> Promise<F.T3<A, B, C>> wait3(Promise<A> tA, Promise<B> tB, Promise<C> tC) {
-            final Promise<F.T3<A, B, C>> result = new Promise<>();
-            Promise<List<Object>> t = waitAll(new Promise[]{tA, tB, tC});
-            t.onRedeem(completed -> {
-                List<Object> values = completed.getOrNull();
-                if(values != null) {
-                    result.invoke(new T3((A) values.get(0), (B) values.get(1), (C) values.get(2)));
-                }
-                else {
-                    result.invokeWithException(completed.exception);
-                }
-            });
-            return result;
-        }
-
-        public static <A, B, C, D> Promise<F.T4<A, B, C, D>> wait4(Promise<A> tA, Promise<B> tB, Promise<C> tC, Promise<D> tD) {
-            final Promise<F.T4<A, B, C, D>> result = new Promise<>();
-            Promise<List<Object>> t = waitAll(new Promise[]{tA, tB, tC, tD});
-            t.onRedeem(completed -> {
-                List<Object> values = completed.getOrNull();
-                if(values != null) {
-                    result.invoke(new T4((A) values.get(0), (B) values.get(1), (C) values.get(2), (D) values.get(3)));
-                }
-                else {
-                    result.invokeWithException(completed.exception);
-                }
-            });
-            return result;
-        }
-
-        public static <A, B, C, D, E> Promise<F.T5<A, B, C, D, E>> wait5(Promise<A> tA, Promise<B> tB, Promise<C> tC, Promise<D> tD, Promise<E> tE) {
-            final Promise<F.T5<A, B, C, D, E>> result = new Promise<>();
-            Promise<List<Object>> t = waitAll(new Promise[]{tA, tB, tC, tD, tE});
-            t.onRedeem(completed -> {
-                List<Object> values = completed.getOrNull();
-                if(values != null) {
-                    result.invoke(new T5((A) values.get(0), (B) values.get(1), (C) values.get(2), (D) values.get(3), (E) values.get(4)));
-                }
-                else {
-                    result.invokeWithException(completed.exception);
-                }
-            });
-            return result;
-        }
 
         private static Promise<F.Tuple<Integer, Promise<Object>>> waitEitherInternal(Promise<?>... futures) {
             final Promise<F.Tuple<Integer, Promise<Object>>> result = new Promise<>();

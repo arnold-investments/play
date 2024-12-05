@@ -141,7 +141,7 @@ public class JPQL {
     }
 
     public JPABase create(String dbName, String entity, String name, Params params) throws Exception {
-        Object o = Play.classloader.loadClass(entity).newInstance();
+        Object o = Play.classloader.loadClass(entity).getDeclaredConstructor().newInstance();
 
         RootParamNode rootParamNode = ParamNode.convert(params.all());
 
@@ -149,7 +149,7 @@ public class JPQL {
     }
 
     public String createFindByQuery(String dbName, String entityName, String entityClass, String query, Object... params) {
-        if (query == null || query.trim().length() == 0) {
+        if (query == null || query.trim().isEmpty()) {
             return "from " + entityName;
         }
         if (query.matches("^by[A-Z].*$")) {
