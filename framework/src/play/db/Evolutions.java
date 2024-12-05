@@ -592,7 +592,15 @@ public class Evolutions extends PlayPlugin {
         if (Play.mode.isDev() && Play.watchService != null) {
             watched.computeIfAbsent(key, k -> {
                 try {
-                    WatchKey watchKey = Play.registerWatcher(path, Evolutions::watchCallback, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
+                    WatchKey watchKey = Play.registerWatcher(
+                        path,
+                        Evolutions::watchCallback,
+                        StandardWatchEventKinds.ENTRY_CREATE,
+                        StandardWatchEventKinds.ENTRY_DELETE,
+                        StandardWatchEventKinds.ENTRY_MODIFY,
+                        StandardWatchEventKinds.OVERFLOW
+                    );
+
                     watchKeyMap.put(watchKey, key);
                     return watchKey;
                 } catch (IOException e) {

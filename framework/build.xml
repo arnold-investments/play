@@ -37,18 +37,7 @@
             <fileset dir="pym">
                 <include name="**/*.pyc"/>
             </fileset>
-            <fileset dir="../samples-and-tests">
-                <include name="**/test-result/**"/>
-                <include name="**/tmp/**"/>
-                <include name="**/db/**"/>
-                <include name="**/attachments/**"/>
-                <include name="**/nbproject/**"/>
-                <include name="**/data/**"/>
-                <include name="**/logs/**"/>
-                <include name="**/i-am-working-here/**"/>
-            </fileset>
         </delete>
-        <antcall target="clean-unittest"/>
     </target>
 
     <target name="version" unless="version">
@@ -64,7 +53,7 @@
 
     <target name="compile" description="compile without cleaning">
         <mkdir dir="classes"/>
-        <javac encoding="utf-8" srcdir="src" destdir="classes" debug="true" source="11" target="11">
+        <javac encoding="utf-8" srcdir="src" destdir="classes" debug="true" source="22" target="22" includeantruntime="true">
             <classpath refid="project.classpath" />
         </javac>
         <copy todir="classes">
@@ -130,8 +119,6 @@
     <target name="modules">
         <property name="play.path" value="../.."/>
         <ant antfile="build.xml" target="build" dir="../modules/testrunner" />
-        <ant antfile="build.xml" target="build" dir="../modules/grizzly" />
-        <ant antfile="build.xml" target="build" dir="../modules/docviewer" />
     </target>
 
     <!-- Netbeans support -->
@@ -198,124 +185,6 @@
         <nbjpdaconnect name="${application.name}" address="${jpda.port}" transport="dt_socket" />
     </target>
 
-    <target name="test-application">
-        <loadfile property="version" srcFile="src/play/version"/>
-        <loadproperties srcfile="${application.path}/conf/application.conf" />
-        <property name="jpda.port" value="8000" />
-        <java classname="play.server.Server" dir="${basedir}" fork="true">
-            <classpath>
-                <pathelement path="${application.path}/conf"/>
-                <fileset dir="${basedir}/../modules/testrunner/lib">
-                    <include name="play-testrunner.jar"/>
-                </fileset>
-                <fileset dir="${application.path}/lib">
-                    <include name="*.jar"/>
-                </fileset>
-                <fileset dir="${application.path}/modules">
-                    <include name="**/*.jar"/>
-                </fileset>
-                <path refid="project.classpath"/>
-            </classpath>
-            <sysproperty key="application.path" value="${application.path}" />
-            <sysproperty key="play.id" value="test" />
-            <sysproperty key="java.endorsed.dirs" value="${basedir}/endorsed" />
-            <sysproperty key="play.debug" value="true" />
-            <jvmarg value="-javaagent:${basedir}/play-${version}.jar" />
-            <jvmarg value="-Xdebug"/>
-            <jvmarg value="-Xrunjdwp:transport=dt_socket,address=${jpda.port},server=y,suspend=n"/>
-        </java>
-    </target>
-
-    <target name="test-in-nb" depends="test">
-         <nbbrowse file="tests-results/html/index.html"/>
-    </target>
-
-    <!-- Tests -->
-
-    <target name="compile-tests" depends="compile">
-        <javac encoding="utf-8" nowarn="${compile.nowarn}" debug="true"  destdir="classes" classpathref="project.classpath" srcdir="tests/src" source="11" target="11">
-            <include name="**/*.java"/>
-        </javac>
-    </target>
-
-    <target name="build-test-modules">
-        <ant antfile="build.xml" target="build" dir="../samples-and-tests/modules/testModule" >
-            <property name="play.path" value="../../../"/>
-        </ant>
-    </target>
-
-    <!-- Launch all *Test.java -->
-
-    <target name="test" depends="clean,jar,build-test-modules" description="run tests suite">
-        <condition property="playExtension" value=".bat">
-            <and><os family="windows"/></and>
-        </condition>
-        <condition property="playExtension" value="">
-            <and><os family="unix"/></and>
-        </condition>
-        <condition property="pythonExecutable" value="python">
-            <and><os family="windows"/></and>
-        </condition>
-        <condition property="pythonExecutable" value="python">
-            <and><os family="unix"/></and>
-        </condition>
-
-        <echo message="Testing unittests" />
-
-        <antcall target="unittest" />
-
-        <echo message="Testing development lifecycle (wait ...)" />
-
-        <exec executable="${pythonExecutable}" failonerror="true">
-            <arg value="${basedir}/../samples-and-tests/i-am-a-developer/tests.py" />
-        </exec>
-
-        <exec executable="${pythonExecutable}" failonerror="true">
-            <arg value="${basedir}/../samples-and-tests/i-am-a-developer/test_jvm_version_flag.py" />
-        </exec>
-
-        <echo message="Using ${basedir}/../play${playExtension}" />
-
-        <antcall target="play-test">
-            <param name="testAppPath" value="${basedir}/../samples-and-tests/just-test-cases"/>
-            <param name="play.user.language" value="-Duser.language=en"/>
-            <param name="play.user.country" value="-Duser.country=US"/>
-        </antcall>
-
-        <antcall target="play-test">
-            <param name="testAppPath" value="${basedir}/../samples-and-tests/forum"/>
-        </antcall>
-
-        <antcall target="play-test">
-            <param name="testAppPath" value="${basedir}/../samples-and-tests/zencontact"/>
-        </antcall>
-
-        <antcall target="play-test">
-            <param name="testAppPath" value="${basedir}/../samples-and-tests/jobboard"/>
-        </antcall>
-
-        <antcall target="play-test">
-            <param name="testAppPath" value="${basedir}/../samples-and-tests/yabe"/>
-        </antcall>
-
-        <antcall target="play-test">
-            <param name="testAppPath" value="${basedir}/../samples-and-tests/nonstatic-app"/>
-        </antcall>
-
-        <antcall target="play-test">
-            <param name="testAppPath" value="${basedir}/../samples-and-tests/fast-tag"/>
-        </antcall>
-
-        <antcall target="test-success" />
-
-    </target>
-
-    <target name="test-success">
-        <echo message="*****************" />
-        <echo message="All test passed !" />
-        <echo message="*****************" />
-    </target>
-
     <target name="check-dependencies-file">
             <available file="${testAppPath}/conf/dependencies.yml" property="dependencies.present"/>
     </target>
@@ -348,77 +217,6 @@
         </fail>
     </target>
 
-    <target name="debug-test-single" depends="compile-tests" description="debug a single test">
-        <nbjpdastart addressproperty="jpda.address" name="Play! framework" transport="dt_socket">
-            <classpath refid="project.classpath"/>
-        </nbjpdastart>
-        <mkdir dir="tests-results" />
-        <mkdir dir="${basedir}/tests-tmp" />
-        <junit errorproperty="tests.failed" failureproperty="tests.failed" fork="true" showoutput="true" tempdir="${basedir}/tests-tmp">
-            <test name="${testclass}" todir="tests-results" />
-            <classpath>
-                <pathelement path="classes"/>
-                <path refid="project.classpath"/>
-            </classpath>
-            <formatter type="brief" usefile="false"/>
-            <formatter type="xml"/>
-            <jvmarg value="-Xrunjdwp:transport=dt_socket,address=${jpda.address}"/>
-            <jvmarg value="-javaagent:${basedir}/play-${version}.jar" />
-            <sysproperty key="tests-tmp" value="${basedir}/tests-tmp" />
-        </junit>
-        <delete dir="${basedir}/tests-tmp" />
-    </target>
-
-    <target name="test-single" depends="compile-tests" description="run a single test">
-        <mkdir dir="tests-results" />
-        <mkdir dir="${basedir}/tests-tmp" />
-        <junit errorproperty="tests.failed" failureproperty="tests.failed" fork="true" showoutput="true" tempdir="${basedir}/tests-tmp" >
-            <test name="${testclass}" todir="tests-results" />
-            <classpath>
-                <pathelement path="classes"/>
-                <path refid="project.classpath"/>
-            </classpath>
-            <formatter type="brief" usefile="false"/>
-            <formatter type="xml"/>
-            <jvmarg value="-javaagent:${basedir}/play-${version}.jar" />
-            <sysproperty key="tests-tmp" value="${basedir}/tests-tmp" />
-        </junit>
-        <delete dir="${basedir}/tests-tmp" />
-    </target>
-
-    <target name="compile-unittest" depends="compile">
-        <mkdir dir="test-classes"/>
-        <javac encoding="utf-8" srcdir="test-src" destdir="test-classes" debug="true" source="11" target="11">
-            <classpath refid="classpath.test" />
-        </javac>
-        <copy todir="test-classes">
-            <fileset dir="test-src">
-                <include name="**/*.properties"/>
-                <include name="**/*.sql"/>
-                <include name="**/*.yml"/>
-                <include name="**/*.xml"/>
-                <include name="**/*.plugins"/>
-                <include name="**/*.gif"/>
-                <include name="**/*.png"/>
-                <include name="**/*.jpg"/>
-            </fileset>
-        </copy>
-    </target>
-
-    <target name="clean-unittest">
-        <delete dir="test-classes" />
-    </target>
-
-    <target name="unittest" depends="compile-unittest">
-        <junit errorproperty="junit.failure" failureproperty="junit.failure">
-            <classpath refid="classpath.test" />
-            <formatter type="brief" usefile="false" />
-            <batchtest>
-                <fileset dir="test-classes" includes="**/*Test.class" />
-            </batchtest>
-        </junit>
-        <fail if="junit.failure" message="Unit test(s) failed.  See reports!"/>
-    </target>
 
     <target name="package" depends="artifact">
         <mkdir dir="dist" />
@@ -432,8 +230,8 @@
         <mkdir dir="dist" />
         <mkdir dir="dist/play-${version}" />
         <copy todir="dist/play-${version}">
-            <fileset dir=".." excludes=".github,**/cobertura.ser,**/*.pyc,hs_err*,.*,.*/*,framework/dist/**,id,nbproject/**,**/.bzr/**,**/.git/**,*.bzrignore,support/textmate/**,framework/classes/**,framework/tests-results/**,samples-and-tests/**/test-result,samples-and-tests/**/i-am-working-here,samples-and-tests/**/data,samples-and-tests/**/logs,samples-and-tests/**/tmp,samples-and-tests/**/db,samples-and-tests/**/attachments,modules/**" />
-            <fileset dir=".." includes="modules/grizzly/**,modules/crud/**,modules/secure/**,modules/docviewer/**,modules/testrunner/**" excludes="**/*.pyc" />
+            <fileset dir=".." excludes=".github,**/cobertura.ser,**/*.pyc,hs_err*,.*,.*/*,framework/dist/**,id,nbproject/**,**/.bzr/**,**/.git/**,*.bzrignore,support/textmate/**,framework/classes/**,framework/tests-results/**,modules/**" />
+            <fileset dir=".." includes="modules/testrunner/**" excludes="**/*.pyc" />
         </copy>
     </target>
 

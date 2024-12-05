@@ -324,9 +324,7 @@ public class ApplicationClassloader extends ClassLoader {
 
     private static final AtomicBoolean watcherInstalled = new AtomicBoolean(false);
     private static final AtomicBoolean runRegularDetectChanges = new AtomicBoolean(false);
-    private static final WatchEvent.Kind<?>[] WATCH_EVENT_KINDS_ALL = new WatchEvent.Kind<?>[]{ StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.OVERFLOW };
     private static final Map<Path, WatchKey> pathWatchKeyMap = new ConcurrentHashMap<>();
-
 
     public static void detectChangesWatcherCallback(WatchKey watchKey, List<WatchEvent<?>> events) {
         boolean clearCache = false;
@@ -420,7 +418,15 @@ public class ApplicationClassloader extends ClassLoader {
         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
             synchronized (pathWatchKeyMap) {
                 if (!pathWatchKeyMap.containsKey(dir)) {
-                    pathWatchKeyMap.put(dir, Play.registerWatcher(dir, ApplicationClassloader::detectChangesWatcherCallback, WATCH_EVENT_KINDS_ALL));
+                    pathWatchKeyMap.put(
+                        dir,
+                        Play.registerWatcher(dir, ApplicationClassloader::detectChangesWatcherCallback,
+                            StandardWatchEventKinds.ENTRY_CREATE,
+                            StandardWatchEventKinds.ENTRY_DELETE,
+                            StandardWatchEventKinds.ENTRY_MODIFY,
+                            StandardWatchEventKinds.OVERFLOW
+                        )
+                    );
                 }
             }
 

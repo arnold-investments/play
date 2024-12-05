@@ -445,7 +445,7 @@ class PlayConfParser(object):
             else: # unkonwn
                 return '${%s}' % key
 
-        return re.sub('\${([a-z.]+)}', expandvar, value)
+        return re.sub('\\${([a-z.]+)}', expandvar, value)
         
 def hasKey(arr, elt):
     try:

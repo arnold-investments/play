@@ -103,11 +103,7 @@ public class VirtualFile {
     }
 
     public boolean exists() {
-        try {
-            return realFile != null && realFile.exists();
-        } catch (AccessControlException e) {
-            return false;
-        }
+        return realFile != null && realFile.exists();
     }
 
     public InputStream inputstream() {

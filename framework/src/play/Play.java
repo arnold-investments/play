@@ -10,7 +10,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
@@ -19,7 +18,6 @@ import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,14 +27,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import play.cache.Cache;
 import play.classloading.ApplicationClasses;
 import play.classloading.ApplicationClassloader;
-import play.db.Evolutions;
 import play.deps.DependenciesManager;
 import play.exceptions.PlayException;
 import play.exceptions.RestartNeededException;
@@ -328,9 +323,9 @@ public class Play {
             Logger.info("Using default cookie domain: " + Http.Cookie.defaultDomain);
         }
 
-        // Dev Watcherservice
+        // Dev watchService
         if (Play.mode.isDev() && watchService == null) {
-            initWatcherService();
+            initWatchService();
         }
 
         // Plugins
@@ -671,7 +666,7 @@ public class Play {
 
     }
 
-    private static void initWatcherService() {
+    private static void initWatchService() {
         try {
             watchService = FileSystems.getDefault().newWatchService();
             watchServiceExecutor.submit(Play::watcherLoop);
