@@ -35,6 +35,7 @@ import play.data.binding.BindingAnnotations;
 import play.data.binding.ParamNode;
 import play.data.validation.Validation;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 import play.mvc.Scope.Params;
 
 /**
@@ -58,12 +59,12 @@ public class GenericModel extends JPABase {
      * @param <T>
      *            The entity class
      * @return The created entity
-     * @deprecated use method {{@link #create(ParamNode, String, Class, Annotation[]) }}
+     * @deprecated use method {{@link #create(Context, ParamNode, String, Class, Annotation[]) }}
      */
     @Deprecated
-    public static <T extends JPABase> T create(Class<?> type, String name, Map<String, String[]> params, Annotation[] annotations) {
+    public static <T extends JPABase> T create(Context context, Class<?> type, String name, Map<String, String[]> params, Annotation[] annotations) {
         ParamNode rootParamNode = ParamNode.convert(params);
-        return (T) create(rootParamNode, name, type, annotations);
+        return (T) create(context, rootParamNode, name, type, annotations);
     }
 
     /**
@@ -81,12 +82,12 @@ public class GenericModel extends JPABase {
      *            The entity class
      * @return The created entity
      */
-    public static <T extends JPABase> T create(ParamNode rootParamNode, String name, Class<?> type, Annotation[] annotations) {
+    public static <T extends JPABase> T create(Context context, ParamNode rootParamNode, String name, Class<?> type, Annotation[] annotations) {
         try {
             Constructor c = type.getDeclaredConstructor();
             c.setAccessible(true);
             Object model = c.newInstance();
-            return (T) edit(rootParamNode, name, model, annotations);
+            return (T) edit(context, rootParamNode, name, model, annotations);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -107,13 +108,13 @@ public class GenericModel extends JPABase {
      *            class of the entity
      * @return the entity
      * 
-     * @see GenericModel#edit(ParamNode, String, Object, Annotation[])
-     * @deprecated use method {{@link GenericModel#edit(ParamNode, String, Object, Annotation[]) }}
+     * @see GenericModel#edit(Context, ParamNode, String, Object, Annotation[])
+     * @deprecated use method {{@link GenericModel#edit(Context, ParamNode, String, Object, Annotation[]) }}
      */
     @Deprecated
-    public static <T extends JPABase> T edit(Object o, String name, Map<String, String[]> params, Annotation[] annotations) {
+    public static <T extends JPABase> T edit(Context context, Object o, String name, Map<String, String[]> params, Annotation[] annotations) {
         ParamNode rootParamNode = ParamNode.convert(params);
-        return (T) edit(rootParamNode, name, o, annotations);
+        return (T) edit(context, rootParamNode, name, o, annotations);
     }
 
     /**
@@ -131,8 +132,8 @@ public class GenericModel extends JPABase {
      *            class of the entity
      * @return the entity
      */
-    public static <T extends JPABase> T edit(ParamNode rootParamNode, String name, Object o, Annotation[] annotations) {
-        return edit(JPA.DEFAULT, rootParamNode, name, o, annotations);
+    public static <T extends JPABase> T edit(Context context, ParamNode rootParamNode, String name, Object o, Annotation[] annotations) {
+        return edit(context, JPA.DEFAULT, rootParamNode, name, o, annotations);
     }
 
     /**
@@ -152,7 +153,7 @@ public class GenericModel extends JPABase {
      *            class of the entity
      * @return the entity
      */
-    public static <T extends JPABase> T edit(String dbName, ParamNode rootParamNode, String name, Object o, Annotation[] annotations) {
+    public static <T extends JPABase> T edit(Context context, String dbName, ParamNode rootParamNode, String name, Object o, Annotation[] annotations) {
         // #1601 - If name is empty, we're dealing with "root" request parameters (without prefixes).
         // Must not call rootParamNode.getChild in that case, as it returns null. Use rootParamNode itself instead.
         ParamNode paramNode = StringUtils.isEmpty(name) ? rootParamNode : rootParamNode.getChild(name, true);
@@ -217,13 +218,13 @@ public class GenericModel extends JPABase {
                                     }
 
                                     Query q = JPA.em(dbName).createQuery("from " + relation + " where " + keyName + " = ?1");
-                                    q.setParameter(1, Binder.directBind(rootParamNode.getOriginalKey(), annotations, _id,
+                                    q.setParameter(1, Binder.directBind(context, rootParamNode.getOriginalKey(), annotations, _id,
                                             Model.Manager.factoryFor((Class<Model>) Play.classloader.loadClass(relation)).keyType(), null));
                                     try {
                                         l.add(q.getSingleResult());
 
                                     } catch (NoResultException e) {
-                                        Validation.addError(name + "." + field.getName(), "validation.notFound", _id);
+                                        context.getValidation().addError(name + "." + field.getName(), "validation.notFound", _id);
                                     }
                                 }
                                 bw.set(field.getName(), o, l);
@@ -233,16 +234,16 @@ public class GenericModel extends JPABase {
                             if (ids != null && ids.length > 0 && !ids[0].equals("")) {
 
                                 Query q = JPA.em(dbName).createQuery("from " + relation + " where " + keyName + " = ?1");
-                                q.setParameter(1, Binder.directBind(rootParamNode.getOriginalKey(), annotations, ids[0],
+                                q.setParameter(1, Binder.directBind(context, rootParamNode.getOriginalKey(), annotations, ids[0],
                                         Model.Manager.factoryFor((Class<Model>) Play.classloader.loadClass(relation)).keyType(), null));
                                 try {
                                     Object to = q.getSingleResult();
-                                    edit(paramNode, field.getName(), to, field.getAnnotations());
+                                    edit(context, paramNode, field.getName(), to, field.getAnnotations());
                                     // Remove it to prevent us from finding it again later
                                     paramNode.removeChild(field.getName(), removedNodesList);
                                     bw.set(field.getName(), o, to);
                                 } catch (NoResultException e) {
-                                    Validation.addError(fieldParamNode.getOriginalKey(), "validation.notFound", ids[0]);
+                                    context.getValidation().addError(fieldParamNode.getOriginalKey(), "validation.notFound", ids[0]);
                                     // Remove only the key to prevent us from finding it again later
                                     // This how the old impl does it..
                                     fieldParamNode.removeChild(keyName, removedNodesList);
@@ -265,7 +266,7 @@ public class GenericModel extends JPABase {
             // #1601 - If name is empty, we're dealing with "root" request parameters (without prefixes).
             // Must not call rootParamNode.getChild in that case, as it returns null. Use rootParamNode itself instead.
             ParamNode beanNode = StringUtils.isEmpty(name) ? rootParamNode : rootParamNode.getChild(name, true);
-            Binder.bindBean(beanNode, o, annotations);
+            Binder.bindBean(context, beanNode, o, annotations);
             return (T) o;
         } catch (Exception e) {
             throw new UnexpectedException(e);
@@ -286,12 +287,12 @@ public class GenericModel extends JPABase {
      *            class of the entity
      * @return the entity
      * 
-     * @deprecated use method {{@link #edit(ParamNode, String)}}
+     * @deprecated use method {{@link #edit(Context, ParamNode, String)}}
      */
     @Deprecated
-    public <T extends GenericModel> T edit(String name, Map<String, String[]> params) {
+    public <T extends GenericModel> T edit(Context context, String name, Map<String, String[]> params) {
         ParamNode rootParamNode = ParamNode.convert(params);
-        return (T) edit(rootParamNode, name, this, null);
+        return (T) edit(context, rootParamNode, name, this, null);
     }
 
     /**
@@ -305,8 +306,8 @@ public class GenericModel extends JPABase {
      *            class of the entity
      * @return the entity
      */
-    public <T extends GenericModel> T edit(ParamNode rootParamNode, String name) {
-        edit(rootParamNode, name, this, null);
+    public <T extends GenericModel> T edit(Context context, ParamNode rootParamNode, String name) {
+        edit(context, rootParamNode, name, this, null);
         return (T) this;
     }
 
@@ -323,8 +324,8 @@ public class GenericModel extends JPABase {
      *            class of the entity
      * @return the entity
      */
-    public <T extends GenericModel> T edit(String dbName, ParamNode rootParamNode, String name) {
-        edit(dbName, rootParamNode, name, this, null);
+    public <T extends GenericModel> T edit(Context context, String dbName, ParamNode rootParamNode, String name) {
+        edit(context, dbName, rootParamNode, name, this, null);
         return (T) this;
     }
 

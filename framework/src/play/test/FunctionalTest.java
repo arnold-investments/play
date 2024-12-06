@@ -15,6 +15,7 @@ import play.classloading.enhancers.ControllersEnhancer.ControllerInstrumentation
 import play.exceptions.JavaExecutionException;
 import play.exceptions.UnexpectedException;
 import play.mvc.ActionInvoker;
+import play.mvc.Context;
 import play.mvc.Controller;
 import play.mvc.Http;
 import play.mvc.Http.Request;
@@ -316,15 +317,20 @@ public abstract class FunctionalTest extends BaseTest {
 
     public static void makeRequest(final Request request, final Response response) {
         final CountDownLatch actionCompleted = new CountDownLatch(1);
-        final Future<?> invocationResult = TestEngine.functionalTestsExecutor.submit(new Invoker.Invocation() {
+
+        Context context = new Context(request, response);
+
+        final Future<?> invocationResult = TestEngine.functionalTestsExecutor.submit(new Invoker.Invocation(context) {
 
             @Override
             public void execute() {
                 renderArgs.clear();
-                ActionInvoker.invoke(request, response);
 
-                if (RenderArgs.current().data != null) {
-                    renderArgs.putAll(RenderArgs.current().data);
+                Context context = new Context(request, response);
+                ActionInvoker.invoke(context);
+
+                if (context.getRenderArgs().data != null) {
+                    renderArgs.putAll(context.getRenderArgs().data);
                 }
             }
 

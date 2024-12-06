@@ -10,6 +10,7 @@ import java.util.Date;
 import play.data.binding.AnnotationHelper;
 import play.i18n.Lang;
 import play.libs.I18N;
+import play.mvc.Context;
 
 /**
  * Binder that support Calendar class.
@@ -17,7 +18,7 @@ import play.libs.I18N;
 public class CalendarBinder implements TypeBinder<Calendar> {
 
     @Override
-    public Calendar bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) throws Exception {
+    public Calendar bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) throws Exception {
         if (value == null || value.trim().length() == 0) {
             return null;
         }

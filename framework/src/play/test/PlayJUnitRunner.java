@@ -18,6 +18,7 @@ import org.junit.runners.model.TestClass;
 import play.Invoker;
 import play.Invoker.DirectInvocation;
 import play.Play;
+import play.mvc.Context;
 
 public class PlayJUnitRunner extends Runner implements Filterable {
 
@@ -28,6 +29,8 @@ public class PlayJUnitRunner extends Runner implements Filterable {
     // *******************
     JUnit4 jUnit4;
 
+    private Context context;
+
     public PlayJUnitRunner(Class testClass) throws ClassNotFoundException, InitializationError {
         synchronized (Play.class) {
             if (!Play.started) {
@@ -35,7 +38,7 @@ public class PlayJUnitRunner extends Runner implements Filterable {
                 Play.javaPath.add(Play.getVirtualFile("test"));
                 // Assure that Play is not start (start can be called in the Play.init method)
                 if (!Play.started) {
-                    Play.start();
+                    Play.start(null); // FIXME: might need to pass the context
                 }
                 useCustomRunner = true;
             }
@@ -60,7 +63,7 @@ public class PlayJUnitRunner extends Runner implements Filterable {
     private void initTest() {
         TestClass testClass = jUnit4.getTestClass();
         if(testClass != null){
-            TestEngine.initTest(testClass.getJavaClass());
+            TestEngine.initTest(context, testClass.getJavaClass());
         }
     }
 
@@ -94,7 +97,7 @@ public class PlayJUnitRunner extends Runner implements Filterable {
                         }
 
                         try {
-                            Invoker.invokeInThread(new DirectInvocation() {
+                            Invoker.invokeInThread(new DirectInvocation(new Context(null, null)) {
 
                                 @Override
                                 public void execute() throws Exception {

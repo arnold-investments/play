@@ -7,6 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Type;
 import java.util.Map;
+import play.mvc.Context;
 
 
 @Retention(RetentionPolicy.RUNTIME)
@@ -21,7 +22,7 @@ public @interface As {
 
     final class DEFAULT implements TypeBinder<Object>, TypeUnbinder<Object> {
         @Override
-        public Object bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
+        public Object bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
             throw new UnsupportedOperationException("Not supported.");
         }
 

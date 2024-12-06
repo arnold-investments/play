@@ -10,6 +10,7 @@ import play.data.binding.Binder;
 import play.data.binding.TypeBinder;
 import play.db.Model;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.mvc.Scope.Params;
 
@@ -17,12 +18,12 @@ public class UploadBinder implements TypeBinder<Model.BinaryField> {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Object bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
+    public Object bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         if (value == null || value.isBlank()) {
             return null;
         }
         try {
-            Request req = Request.current();
+            Request req = context == null ? null : context.getRequest();
             if (req != null && req.args != null) {
                 List<Upload> uploads = (List<Upload>) req.args.get("__UPLOADS");
                 if (uploads != null) {
@@ -34,7 +35,7 @@ public class UploadBinder implements TypeBinder<Model.BinaryField> {
                 }
             }
 
-            if (Params.current() != null && Params.current().get(value + "_delete_") != null) {
+            if (context.getParams() != null && context.getParams().get(value + "_delete_") != null) {
                 return null;
             }
             return Binder.MISSING;

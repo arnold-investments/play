@@ -20,6 +20,7 @@ import play.exceptions.UnexpectedException;
 import play.libs.F;
 import play.libs.F.Promise;
 import play.libs.Time;
+import play.mvc.Context;
 import play.mvc.Http;
 
 /**
@@ -38,6 +39,10 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
     protected Throwable lastException = null;
 
     Date nextPlannedExecution = null;
+
+    public Job(Context context) {
+        super(context);
+    }
 
     @Override
     public InvocationContext getInvocationContext() {

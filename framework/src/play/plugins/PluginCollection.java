@@ -23,6 +23,7 @@ import play.db.Model;
 import play.exceptions.UnexpectedException;
 import play.inject.Injector;
 import play.libs.F;
+import play.mvc.Context;
 import play.mvc.Http;
 import play.mvc.Router;
 import play.mvc.results.Result;
@@ -661,9 +662,9 @@ public class PluginCollection {
         }
     }
 
-    public Object bind(RootParamNode rootParamNode, String name, Class<?> clazz, Type type, Annotation[] annotations) {
+    public Object bind(Context context, RootParamNode rootParamNode, String name, Class<?> clazz, Type type, Annotation[] annotations) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            Object result = plugin.bind(rootParamNode, name, clazz, type, annotations);
+            Object result = plugin.bind(context, rootParamNode, name, clazz, type, annotations);
             if (result != null) {
                 return result;
             }
@@ -671,9 +672,9 @@ public class PluginCollection {
         return null;
     }
 
-    public Object bindBean(RootParamNode rootParamNode, String name, Object bean) {
+    public Object bindBean(Context context, RootParamNode rootParamNode, String name, Object bean) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            Object result = plugin.bindBean(rootParamNode, name, bean);
+            Object result = plugin.bindBean(context, rootParamNode, name, bean);
             if (result != null) {
                 return result;
             }

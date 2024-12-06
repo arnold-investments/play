@@ -34,6 +34,7 @@ import play.db.DB;
 import play.db.Model;
 import play.exceptions.JPAException;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -43,7 +44,7 @@ public class JPAPlugin extends PlayPlugin {
     public static boolean autoTxs = true;
   
     @Override
-    public Object bind(RootParamNode rootParamNode, String name, Class clazz, java.lang.reflect.Type type, Annotation[] annotations) {
+    public Object bind(Context context, RootParamNode rootParamNode, String name, Class clazz, java.lang.reflect.Type type, Annotation[] annotations) {
         // TODO need to be more generic in order to work with JPASupport
         if (JPABase.class.isAssignableFrom(clazz)) {
 
@@ -76,28 +77,28 @@ public class JPAPlugin extends PlayPlugin {
                     for (ParamNode id : ids) {
                         if (id.getValues() == null || id.getValues().length == 0 || id.getFirstValue(null)== null || id.getFirstValue(null).trim().length() <= 0 ) {
                              // We have no ids, it is a new entity
-                            return GenericModel.create(rootParamNode, name, clazz, annotations);
+                            return GenericModel.create(context, rootParamNode, name, clazz, annotations);
                         }
-                        query.setParameter(j + 1, Binder.directBind(id.getOriginalKey(), annotations, id.getValues()[0], pk[j++], null));
+                        query.setParameter(j + 1, Binder.directBind(context, id.getOriginalKey(), annotations, id.getValues()[0], pk[j++], null));
 
                     }
                     Object o = query.getSingleResult();
-                    return GenericModel.edit(rootParamNode, name, o, annotations);
+                    return GenericModel.edit(context, rootParamNode, name, o, annotations);
                 } catch (NoResultException e) {
                     // ok
                 } catch (Exception e) {
                     throw new UnexpectedException(e);
                 }
             }
-            return GenericModel.create(rootParamNode, name, clazz, annotations);
+            return GenericModel.create(context, rootParamNode, name, clazz, annotations);
         }
         return null;
     }
 
     @Override
-    public Object bindBean(RootParamNode rootParamNode, String name, Object bean) {
+    public Object bindBean(Context context, RootParamNode rootParamNode, String name, Object bean) {
         if (bean instanceof JPABase) {
-            return GenericModel.edit(rootParamNode, name, bean, null);
+            return GenericModel.edit(context, rootParamNode, name, bean, null);
         }
         return null;
     }

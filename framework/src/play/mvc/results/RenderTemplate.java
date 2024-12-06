@@ -2,6 +2,8 @@ package play.mvc.results;
 
 import play.exceptions.UnexpectedException;
 import play.libs.MimeTypes;
+import play.mvc.Context;
+import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 import play.templates.Template;
@@ -30,10 +32,12 @@ public class RenderTemplate extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
+    public void apply(Context context) {
         try {
+            Http.Response response = context.getResponse();
+
             String contentType = MimeTypes.getContentType(name, "text/plain");
-            response.out.write(content.getBytes(getEncoding()));
+            response.out.write(content.getBytes(getEncoding(response)));
             setContentTypeIfNotSet(response, contentType);
         } catch (Exception e) {
             throw new UnexpectedException(e);

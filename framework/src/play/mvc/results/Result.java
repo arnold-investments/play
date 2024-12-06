@@ -1,5 +1,6 @@
 package play.mvc.results;
 
+import play.mvc.Context;
 import play.mvc.Http;
 import play.utils.FastRuntimeException;
 
@@ -16,7 +17,7 @@ public abstract class Result extends FastRuntimeException {
         super(description);
     }
 
-    public abstract void apply(Http.Request request, Http.Response response);
+    public abstract void apply(Context context);
 
     protected void setContentTypeIfNotSet(Http.Response response, String contentType) {
         response.setContentTypeIfNotSet(contentType);
@@ -27,8 +28,8 @@ public abstract class Result extends FastRuntimeException {
      * 
      * @return The encoding of the response
      */
-    protected String getEncoding() {
-        return Http.Response.current().encoding;
+    protected String getEncoding(Http.Response response) {
+        return response.encoding;
     }
 
 }

@@ -28,7 +28,6 @@ import java.util.regex.Pattern;
 
 public class ValidationPlugin extends PlayPlugin {
 
-    public static final ThreadLocal<Map<Object, String>> keys = new ThreadLocal<>();
 
     private boolean isAwakingFromAwait() {
         Http.Request request = Http.Request.current();
@@ -43,7 +42,6 @@ public class ValidationPlugin extends PlayPlugin {
 
     @Override
     public void beforeInvocation() {
-        keys.set(new HashMap<Object, String>());
         Validation.current.set(new Validation());
     }
 

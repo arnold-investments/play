@@ -16,7 +16,6 @@ import play.exceptions.UnexpectedException;
 
 public class Validation {
 
-    public static final ThreadLocal<Validation> current = new ThreadLocal<>();
     final List<Error> errors = new ArrayList<>();
     boolean keep = false;
 
@@ -24,29 +23,19 @@ public class Validation {
     }
 
     /**
-     * @return The current validation helper
-     */
-    public static Validation current() {
-        return current.get();
-    }
-
-    /**
      * @return The list of all errors
      */
     @SuppressWarnings({"serial", "unused"})
-    public static List<Error> errors() {
-        Validation validation = current.get();
-        if (validation == null)
-            return Collections.emptyList();
-        
-        return new ArrayList<Error>(validation.errors) {
+    public List<Error> errors() {
+
+        return new ArrayList<Error>(errors) {
 
             public Error forKey(String key) {
-                return Validation.error(key);
+                return error(key);
             }
 
             public List<Error> allForKey(String key) {
-                return Validation.errors(key);
+                return errors(key);
             }
         };
     }
@@ -68,8 +57,8 @@ public class Validation {
      * @param message Message key
      * @param variables Message variables
      */
-    public static void addError(String field, String message, String... variables) {
-        insertError(Validation.current().errors.size(), field, message,  variables);
+    public void addError(String field, String message, String... variables) {
+        insertError(errors.size(), field, message,  variables);
     }
     
     /**
@@ -79,10 +68,10 @@ public class Validation {
      * @param message Message key
      * @param variables Message variables
      */
-    public static void insertError(int index, String field, String message, String... variables) {
+    public void insertError(int index, String field, String message, String... variables) {
         Error error = error(field);
         if (error == null || !error.message.equals(message)) {
-            Validation.current().errors.add(index, new Error(field, message, variables));
+            errors.add(index, new Error(field, message, variables));
         }
     }
     
@@ -91,22 +80,16 @@ public class Validation {
      * @param field Field name
      * @param message Message key
      */
-     public static void removeErrors(String field, String message) {
-         Validation validation = current.get();
-         if (validation != null) {
-             validation.errors.removeIf(error -> error.key != null && error.key.equals(field) && error.message.equals(message));
-         }
+     public void removeErrors(String field, String message) {
+         errors.removeIf(error -> error.key != null && error.key.equals(field) && error.message.equals(message));
      }
      
     /**
     * Remove all errors on a field
     * @param field Field name
     */
-    public static void removeErrors(String field) {
-        Validation validation = current.get();
-        if (validation != null) {
-            validation.errors.removeIf(error -> error.key != null && error.key.equals(field));
-        }
+    public void removeErrors(String field) {
+        errors.removeIf(error -> error.key != null && error.key.equals(field));
     }
     
     
@@ -114,16 +97,15 @@ public class Validation {
     /**
      * @return True if the current request has errors
      */
-    public static boolean hasErrors() {
-        Validation validation = current.get();
-        return validation != null && validation.errors.size() > 0;
+    public boolean hasErrors() {
+        return !errors.isEmpty();
     }
 
     /**
      * @param field The field name
      * @return true if field has some errors
      */
-    public static boolean hasErrors(String field){
+    public boolean hasErrors(String field){
         return error(field) != null;
     }
     
@@ -131,12 +113,8 @@ public class Validation {
      * @param field The field name
      * @return First error related to this field
      */
-    public static Error error(String field) {
-        Validation validation = current.get();
-        if (validation == null)
-            return null;
-          
-        for (Error error : validation.errors) {
+    public Error error(String field) {
+        for (Error error : errors) {
             if (error.key!=null && error.key.equals(field)) {
                 return error;
             }
@@ -148,13 +126,9 @@ public class Validation {
      * @param field The field name
      * @return All errors related to this field
      */
-    public static List<Error> errors(String field) {
-        Validation validation = current.get();
-        if (validation == null)
-            return Collections.emptyList();
-      
+    public List<Error> errors(String field) {
         List<Error> errors = new ArrayList<>();
-        for (Error error : validation.errors) {
+        for (Error error : errors) {
             if (error.key!=null && error.key.equals(field)) {
                 errors.add(error);
             }
@@ -165,23 +139,20 @@ public class Validation {
     /**
      * Keep errors for the next request (will be stored in a cookie)
      */
-    public static void keep() {
-        current.get().keep = true;
+    public void keep() {
+        keep = true;
     }
 
     /**
      * @param field The field name
      * @return True is there are errors related to this field
      */
-    public static boolean hasError(String field) {
+    public boolean hasError(String field) {
         return error(field) != null;
     }
 
-    public static void clear() {
-        current.get().errors.clear();
-        if(ValidationPlugin.keys.get() != null){
-            ValidationPlugin.keys.get().clear();
-        }
+    public void clear() {
+        errors.clear();
     }
 
     // ~~~~ Integration helper
@@ -288,115 +259,115 @@ public class Validation {
         }
     }
 
-    public static ValidationResult required(String key, Object o) {
+    public ValidationResult required(String key, Object o) {
         RequiredCheck check = new RequiredCheck();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult min(String key, Object o, double min) {
+    public ValidationResult min(String key, Object o, double min) {
         MinCheck check = new MinCheck();
         check.min = min;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult max(String key, Object o, double max) {
+    public ValidationResult max(String key, Object o, double max) {
         MaxCheck check = new MaxCheck();
         check.max = max;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult future(String key, Object o, Date reference) {
+    public ValidationResult future(String key, Object o, Date reference) {
         InFutureCheck check = new InFutureCheck();
         check.reference = reference;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult future(String key, Object o) {
+    public ValidationResult future(String key, Object o) {
         InFutureCheck check = new InFutureCheck();
         check.reference = new Date();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult past(String key, Object o, Date reference) {
+    public ValidationResult past(String key, Object o, Date reference) {
         InPastCheck check = new InPastCheck();
         check.reference = reference;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult past(String key, Object o) {
+    public ValidationResult past(String key, Object o) {
         InPastCheck check = new InPastCheck();
         check.reference = new Date();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult match(String key, Object o, String pattern) {
+    public ValidationResult match(String key, Object o, String pattern) {
         MatchCheck check = new MatchCheck();
         check.pattern = Pattern.compile(pattern);
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult email(String key, Object o) {
+    public ValidationResult email(String key, Object o) {
         EmailCheck check = new EmailCheck();
         return applyCheck(check, key, o);
     }
-    public static ValidationResult url(String key, Object o) {
+    public ValidationResult url(String key, Object o) {
         URLCheck check = new URLCheck();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult phone(String key, Object o) {
+    public ValidationResult phone(String key, Object o) {
         PhoneCheck check = new PhoneCheck();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult ipv4Address(String key, Object o) {
+    public ValidationResult ipv4Address(String key, Object o) {
         IPv4AddressCheck check = new IPv4AddressCheck();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult ipv6Address(String key, Object o) {
+    public ValidationResult ipv6Address(String key, Object o) {
         IPv6AddressCheck check = new IPv6AddressCheck();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult isTrue(String key, Object o) {
+    public ValidationResult isTrue(String key, Object o) {
         IsTrueCheck check = new IsTrueCheck();
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult equals(String key, Object o, String otherName, Object to) {
+    public ValidationResult equals(String key, Object o, String otherName, Object to) {
         EqualsCheck check = new EqualsCheck();
         check.otherKey = otherName;
         check.otherValue = to;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult range(String key, Object o, double min, double max) {
+    public ValidationResult range(String key, Object o, double min, double max) {
         RangeCheck check = new RangeCheck();
         check.min = min;
         check.max = max;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult minSize(String key, Object o, int minSize) {
+    public ValidationResult minSize(String key, Object o, int minSize) {
         MinSizeCheck check = new MinSizeCheck();
         check.minSize = minSize;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult maxSize(String key, Object o, int maxSize) {
+    public ValidationResult maxSize(String key, Object o, int maxSize) {
         MaxSizeCheck check = new MaxSizeCheck();
         check.maxSize = maxSize;
         return applyCheck(check, key, o);
     }
 
-    public static ValidationResult valid(String key, Object o) {
+    public ValidationResult valid(String key, Object o) {
         ValidCheck check = new ValidCheck();
         check.key = key;
         return applyCheck(check, key, o);
     }
 
-    static ValidationResult applyCheck(AbstractAnnotationCheck<?> check, String key, Object o) {
+    ValidationResult applyCheck(AbstractAnnotationCheck<?> check, String key, Object o) {
         try {
             ValidationResult result = new ValidationResult();
             if (!check.isSatisfied(o, o, null, null)) {
@@ -407,7 +378,7 @@ public class Validation {
                                 : check.getMessageVariables().values()
                                         .toArray(new String[0]),
                         check.getSeverity());
-                Validation.current().errors.add(error);
+                errors.add(error);
                 result.error = error;
                 result.ok = false;
             } else {

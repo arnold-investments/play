@@ -8,6 +8,7 @@ import java.util.List;
 import play.data.Upload;
 import play.db.Model;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.mvc.Scope.Params;
 
@@ -15,12 +16,12 @@ public class BinaryBinder implements TypeBinder<Model.BinaryField> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Object bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
+    public Object bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         if (value == null || value.trim().isEmpty()) {
             return null;
         }
         try {
-            Request req = Request.current();
+            Request req = context.getRequest();
             if (req != null) {
                 Model.BinaryField b = (Model.BinaryField) actualClass.getDeclaredConstructor().newInstance();
                 List<Upload> uploads = (List<Upload>) req.args.get("__UPLOADS");
@@ -34,7 +35,7 @@ public class BinaryBinder implements TypeBinder<Model.BinaryField> {
                 }
             }
 
-            if (Params.current() != null && Params.current().get(value + "_delete_") != null) {
+            if (context.getParams() != null && context.getParams().get(value + "_delete_") != null) {
                 return null;
             }
             return Binder.MISSING;

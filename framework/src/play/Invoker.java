@@ -23,6 +23,7 @@ import play.exceptions.UnexpectedException;
 import play.i18n.Lang;
 import play.libs.F;
 import play.libs.F.Promise;
+import play.mvc.Context;
 import play.utils.PThreadFactory;
 
 /**
@@ -186,6 +187,11 @@ public class Invoker {
      * An Invocation in something to run in a Play! context
      */
     public abstract static class Invocation implements Runnable {
+        protected Context context;
+
+        public Invocation(Context context) {
+            this.context = context;
+        }
 
         /**
          * If set, monitor the time the invocation waited in the queue
@@ -221,7 +227,7 @@ public class Invoker {
                 if (Play.mode == Mode.PROD) {
                     throw new UnexpectedException("Application is not started");
                 }
-                Play.start();
+                Play.start(context);
             }
             InvocationContext.current.set(getInvocationContext());
             return true;
@@ -306,8 +312,6 @@ public class Invoker {
                 waitInQueue.stop();
             }
 
-            boolean skipFinally = false;
-
             try {
                 preInit();
                 if (init()) {
@@ -326,8 +330,7 @@ public class Invoker {
                     onSuccess();
                 }
             } catch (AsyncRequest e) {
-                skipFinally = true;
-
+                after();
                 e.task.onRedeem(p -> {
                     try {
                         onSuccess();
@@ -338,28 +341,29 @@ public class Invoker {
                     }
                 });
 
-                after();
             } catch (Suspend e) {
                 suspend(e);
                 after();
             } catch (Throwable e) {
                 onException(e);
             } finally {
-                if (!skipFinally) {
-                    _finally();
-                }
+                _finally();
             }
         }
     }
 
     /**
-     * A direct invocation (in the same thread than caller)
+     * A direct invocation (in the same thread as caller)
      */
     public abstract static class DirectInvocation extends Invocation {
 
         public static final String invocationType = "DirectInvocation";
 
         Suspend retry = null;
+
+        public DirectInvocation(Context context) {
+            super(context);
+        }
 
         @Override
         public boolean init() {

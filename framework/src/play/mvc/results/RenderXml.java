@@ -4,6 +4,8 @@ import org.w3c.dom.Document;
 
 import play.exceptions.UnexpectedException;
 import play.libs.XML;
+import play.mvc.Context;
+import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 
@@ -33,10 +35,12 @@ public class RenderXml extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
+    public void apply(Context context) {
         try {
+            Http.Response response = context.getResponse();
+
             setContentTypeIfNotSet(response, "text/xml");
-            response.out.write(xml.getBytes(getEncoding()));
+            response.out.write(xml.getBytes(getEncoding(response)));
         } catch(Exception e) {
             throw new UnexpectedException(e);
         }

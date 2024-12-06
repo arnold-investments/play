@@ -4,6 +4,7 @@ import play.data.binding.TypeBinder;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Locale;
+import play.mvc.Context;
 
 /**
  * Binder that support Locale class.
@@ -11,7 +12,7 @@ import java.util.Locale;
 public class LocaleBinder implements TypeBinder<Locale> {
 
     @Override
-    public Locale bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
+    public Locale bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         if( value == null )
             return null;
         if (value.length() == 2) {

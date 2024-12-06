@@ -26,6 +26,7 @@ public class JobsPlugin extends PlayPlugin {
 
     public static ScheduledThreadPoolExecutor executor;
     public static final List<Job<?>> scheduledJobs = new ArrayList<>();
+
     private static final ThreadLocal<List<Callable<?>>> afterInvocationActions = new ThreadLocal<>();
 
     @Override
@@ -264,8 +265,10 @@ public class JobsPlugin extends PlayPlugin {
     public void afterInvocation() {
         List<Callable<?>> currentActions = afterInvocationActions.get();
         afterInvocationActions.remove();
-        for (Callable<?> callable : currentActions) {
-            executor.submit(callable);
+        if (currentActions != null) {
+            for (Callable<?> callable : currentActions) {
+                executor.submit(callable);
+            }
         }
     }
 

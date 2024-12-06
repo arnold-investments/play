@@ -37,6 +37,7 @@ import play.exceptions.PlayException;
 import play.exceptions.RestartNeededException;
 import play.exceptions.UnexpectedException;
 import play.libs.IO;
+import play.mvc.Context;
 import play.mvc.Http;
 import play.mvc.Router;
 import play.plugins.PluginCollection;
@@ -334,7 +335,7 @@ public class Play {
         // Done !
         if (mode == Mode.PROD) {
             if (preCompile() && System.getProperty("precompile") == null) {
-                start();
+                start(null);
             } else {
                 return;
             }
@@ -480,7 +481,7 @@ public class Play {
     /**
      * Start the application. Recall to restart !
      */
-    public static synchronized void start() {
+    public static synchronized void start(Context context) {
         try {
 
             if (started) {
@@ -524,7 +525,7 @@ public class Play {
 
             // Locales
             langs = new ArrayList<>(Arrays.asList(configuration.getProperty("application.langs", "").split(",")));
-            if (langs.size() == 1 && langs.get(0).trim().length() == 0) {
+            if (langs.size() == 1 && langs.getFirst().trim().isEmpty()) {
                 langs = new ArrayList<>(16);
             }
 
@@ -545,8 +546,8 @@ public class Play {
                 // Must update current response also, since the request/response triggering
                 // this configuration-loading in dev-mode have already been
                 // set up with the previous encoding
-                if (Http.Response.current() != null) {
-                    Http.Response.current().encoding = _defaultWebEncoding;
+                if (context != null && context.getResponse() != null) {
+                    context.getResponse().encoding = _defaultWebEncoding;
                 }
             }
 
@@ -743,10 +744,10 @@ public class Play {
                     Logger.info("Restart: " + e.getMessage());
                 }
             }
-            start();
+            start(null); // FIXME: might need to pass the context
         } catch (Exception e) {
             Logger.error(e, "Restart: " + e.getMessage());
-            start();
+            start(null); // FIXME: might need to pass the context
         }
     }
 

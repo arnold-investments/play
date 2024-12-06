@@ -19,6 +19,8 @@ import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 import play.Logger;
 import play.Play;
+import play.mvc.Context;
+import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 import play.mvc.Router;
@@ -102,30 +104,26 @@ public class TestEngine {
         }
     }
     
-    public static void initTest(Class<?> testClass) { 
+    public static void initTest(Context context, Class<?> testClass) {
         CleanTest cleanTestAnnot = null;
         if(testClass != null ){
             cleanTestAnnot = testClass.getAnnotation(CleanTest.class) ;
         }
         if(cleanTestAnnot != null && cleanTestAnnot.removeCurrent() == true){
-            if(Request.current != null){
-                Request.current.remove();
-            }
-            if(Response.current != null){
-                Response.current.remove();
-            }
-            if(RenderArgs.current != null){
-                RenderArgs.current.remove();
+            if (context != null) {
+                context.setRequest(null);
+                context.setResponse(null);
+                context.setRenderArgs(null);
             }
         }
         if (cleanTestAnnot == null || (cleanTestAnnot != null && cleanTestAnnot.createDefault() == true)) {
-            if (Request.current() == null) {
+            if (context != null && context.getRequest() instanceof Request request) {
                 // Use base URL to create a request for this host
                 // host => with port
                 // domain => without port
-                String host = Router.getBaseUrl();
+                String host = Router.getBaseUrl(request);
                 String domain = null;
-                Integer port = 80;
+                int port = 80;
                 boolean isSecure = false;
                 if (host == null || host.equals("application.baseUrl")) {
                     host = "localhost:" + port;
@@ -144,35 +142,35 @@ public class TestEngine {
                 }else{
                    domain = host;
                 }
-                Request request = Request.createRequest(null, "GET", "/", "", null,
+                Request newRequest = Request.createRequest(null, "GET", "/", "", null,
                         null, null, host, false, port, domain, isSecure, null, null);
-                request.body = new ByteArrayInputStream(new byte[0]);
-                Request.current.set(request);
+                newRequest.body = new ByteArrayInputStream(new byte[0]);
+                context.setRequest(newRequest);
             }
 
-            if (Response.current() == null) {
+            if (context == null || context.getResponse() == null) {
                 Response response = new Response();
                 response.out = new ByteArrayOutputStream();
                 response.direct = null;
-                Response.current.set(response);
+                context.setResponse(response);
             }
 
-            if (RenderArgs.current() == null) {
+            if (context == null || context.getRenderArgs() == null) {
                 RenderArgs renderArgs = new RenderArgs();
-                RenderArgs.current.set(renderArgs);
+                context.setRenderArgs(renderArgs);
             }
         }
     }
 
     @SuppressWarnings("unchecked")
-    public static TestResults run(String name) {
+    public static TestResults run(Context context, String name) {
         TestResults testResults = new TestResults();
 
         try {
             // Load test class
             Class testClass = Play.classloader.loadClass(name);
                  
-            initTest(testClass);
+            initTest(context, testClass);
             
             TestResults pluginTestResults = Play.pluginCollection.runTest(testClass);
             if (pluginTestResults != null) {

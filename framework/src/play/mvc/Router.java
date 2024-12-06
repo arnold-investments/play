@@ -422,15 +422,15 @@ public class Router {
         return new HashMap<>(16);
     }
 
-    public static ActionDefinition reverse(String action) {
+    public static ActionDefinition reverse(Context context, String action) {
         // Note the map is not <code>Collections.EMPTY_MAP</code> because it
         // will be copied and changed.
-        return reverse(action, new HashMap<String, Object>(16));
+        return reverse(context, action, new HashMap<String, Object>(16));
     }
 
-    public static String getFullUrl(String action, Map<String, Object> args) {
-        ActionDefinition actionDefinition = reverse(action, args);
-        String base = getBaseUrl();
+    public static String getFullUrl(Context context, String action, Map<String, Object> args) {
+        ActionDefinition actionDefinition = reverse(context, action, args);
+        String base = getBaseUrl(context.getRequest());
         if (actionDefinition.method.equals("WS")) {
             return base.replaceFirst("http:", "ws:").replaceFirst("https:", "wss:") + actionDefinition;
         }
@@ -439,8 +439,8 @@ public class Router {
 
     // Gets baseUrl from current request or application.baseUrl in
     // application.conf
-    public static String getBaseUrl() {
-        if (Http.Request.current() == null) {
+    public static String getBaseUrl(Http.Request request) {
+        if (request == null) {
             // No current request is present - must get baseUrl from config
             String appBaseUrl = Play.configuration.getProperty("application.baseUrl", "application.baseUrl");
             if (appBaseUrl.endsWith("/")) {
@@ -450,21 +450,21 @@ public class Router {
             return appBaseUrl;
 
         } else {
-            return Http.Request.current().getBase();
+            return request.getBase();
         }
     }
 
-    public static String getFullUrl(String action) {
+    public static String getFullUrl(Context context, String action) {
         // Note the map is not <code>Collections.EMPTY_MAP</code> because it
         // will be copied and changed.
-        return getFullUrl(action, new HashMap<String, Object>(16));
+        return getFullUrl(context, action, new HashMap<String, Object>(16));
     }
 
-    public static String reverse(VirtualFile file) {
-        return reverse(file, false);
+    public static String reverse(Http.Request request, VirtualFile file) {
+        return reverse(request, file, false);
     }
 
-    public static String reverse(VirtualFile file, boolean absolute) {
+    public static String reverse(Http.Request request, VirtualFile file, boolean absolute) {
         if (file == null || !file.exists()) {
             throw new NoRouteFoundException("File not found (" + file + ")");
         }
@@ -476,7 +476,7 @@ public class Router {
                 if (!staticDir.startsWith("/")) {
                     staticDir = "/" + staticDir;
                 }
-                if (!staticDir.equals("/") && !staticDir.endsWith("/")) {
+                if (!staticDir.endsWith("/")) {
                     staticDir = staticDir + "/";
                 }
                 if (path.startsWith(staticDir)) {
@@ -485,11 +485,11 @@ public class Router {
                         to = to.substring(0, to.length() - "/index.html".length() + 1);
                     }
                     if (absolute) {
-                        boolean isSecure = Http.Request.current() == null ? false : Http.Request.current().secure;
-                        String base = getBaseUrl();
+                        boolean isSecure = request != null && request.secure;
+                        String base = getBaseUrl(request);
                         if (!StringUtils.isEmpty(route.host)) {
                             // Compute the host
-                            int port = Http.Request.current() == null ? 80 : Http.Request.current().get().port;
+                            int port = request == null ? 80 : request.port;
                             String host = (port != 80 && port != 443) ? route.host + ":" + port : route.host;
                             to = (isSecure ? "https://" : "http://") + host + to;
                         } else {
@@ -503,31 +503,31 @@ public class Router {
         throw new NoRouteFoundException(file.relativePath());
     }
 
-    public static String reverseWithCheck(String name, VirtualFile file, boolean absolute) {
+    public static String reverseWithCheck(Http.Request request, String name, VirtualFile file, boolean absolute) {
         if (file == null || !file.exists()) {
             throw new NoRouteFoundException(name + " (file not found)");
         }
-        return reverse(file, absolute);
+        return reverse(request, file, absolute);
     }
 
-    public static ActionDefinition reverse(String action, Map<String, Object> args) {
+    public static ActionDefinition reverse(Context context, String action, Map<String, Object> args) {
 
-        String encoding = Http.Response.current() == null ? Play.defaultWebEncoding : Http.Response.current().encoding;
+        String encoding = context == null || context.getResponse() == null ? Play.defaultWebEncoding : context.getResponse().encoding;
 
         if (action.startsWith("controllers.")) {
             action = action.substring(12);
         }
         Map<String, Object> argsbackup = new HashMap<>(args);
         // Add routeArgs
-        if (Scope.RouteArgs.current() != null) {
-            for (String key : Scope.RouteArgs.current().data.keySet()) {
+        if (context.getRouteArgs() != null) {
+            for (String key : context.getRouteArgs() .data.keySet()) {
                 if (!args.containsKey(key)) {
-                    args.put(key, Scope.RouteArgs.current().data.get(key));
+                    args.put(key, context.getRouteArgs().data.get(key));
                 }
             }
         }
 
-        Http.Request request = Http.Request.current();
+        Http.Request request = context.getRequest();
         String requestFormat = request == null || request.format == null ? "" : request.format;
 
         List<ActionRoute> matchingRoutes = getActionRoutes(action);
@@ -670,7 +670,7 @@ public class Router {
                 actionDefinition.args = argsbackup;
                 actionDefinition.host = host;
                 if (Boolean.parseBoolean(Play.configuration.getProperty("application.forceSecureReverseRoutes", "false"))) {
-                    actionDefinition.secure();
+                    actionDefinition.secure(request);
                 }
                 return actionDefinition;
             }
@@ -745,14 +745,14 @@ public class Router {
          */
         public Map<String, Object> args;
 
-        public ActionDefinition add(String key, Object value) {
+        public ActionDefinition add(Context context, String key, Object value) {
             args.put(key, value);
-            return reverse(action, args);
+            return reverse(context, action, args);
         }
 
-        public ActionDefinition remove(String key) {
+        public ActionDefinition remove(Context context, String key) {
             args.remove(key);
-            return reverse(action, args);
+            return reverse(context, action, args);
         }
 
         public ActionDefinition addRef(String fragment) {
@@ -765,12 +765,12 @@ public class Router {
             return url;
         }
 
-        public void absolute() {
-            boolean isSecure = Http.Request.current() == null ? false : Http.Request.current().secure;
-            String base = getBaseUrl();
+        public void absolute(Http.Request request) {
+            boolean isSecure = request != null && request.secure;
+            String base = getBaseUrl(request);
             String hostPart = host;
-            String domain = Http.Request.current() == null ? "" : Http.Request.current().get().domain;
-            int port = Http.Request.current() == null ? 80 : Http.Request.current().get().port;
+            String domain = request == null ? "" : request.get().domain;
+            int port = request == null ? 80 : request.get().port;
             if (port != 80 && port != 443) {
                 hostPart += ":" + port;
             }
@@ -795,9 +795,9 @@ public class Router {
             }
         }
 
-        public ActionDefinition secure() {
+        public ActionDefinition secure(Http.Request request) {
             if (!url.contains("http://") && !url.contains("https://")) {
-                absolute();
+                absolute(request);
             }
             url = url.replace("http:", "https:");
             return this;

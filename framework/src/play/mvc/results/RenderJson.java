@@ -8,6 +8,7 @@ import java.lang.reflect.Type;
 import java.util.Objects;
 
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 
@@ -52,9 +53,11 @@ public class RenderJson extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
+    public void apply(Context context) {
         try {
-            String encoding = getEncoding();
+            Response response = context.getResponse();
+
+            String encoding = getEncoding(context.getResponse());
             setContentTypeIfNotSet(response, "application/json; charset=" + encoding);
             response.out.write(json.getBytes(encoding));
         } catch (Exception e) {

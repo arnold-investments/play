@@ -59,20 +59,12 @@ public class Controller implements PlayController, ControllerSupport {
 
     /**
      * The current HTTP request: the message sent by the client to the server.
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.request - controller.request.current()
-     *
      */
-    protected static Http.Request request = null;
+    protected Http.Request request = null;
     /**
      * The current HTTP response: The message sent back from the server after a request.
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.response - controller.response.current()
-     *
      */
-    protected static Http.Response response = null;
+    protected Http.Response response = null;
     /**
      * The current HTTP session. The Play! session is not living on the server side but on the client side. In fact, it
      * is stored in a signed cookie. This session is therefore limited to 4kb.
@@ -95,11 +87,8 @@ public class Controller implements PlayController, ControllerSupport {
      * for the extra bandwidth that each web request will require. Moreover, web browsers limit the number and size of
      * cookies that may be stored by a web site. To improve efficiency and allow for more session data, the server may
      * compress the data before creating the cookie, decompressing it later when the cookie is returned by the client.
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.session - controller.session.current()
      */
-    protected static Scope.Session session = null;
+    protected Scope.Session session = null;
     /**
      * The current flash scope. The flash is a temporary storage mechanism that is a hash map You can store values
      * associated with keys and later retrieve them. It has one special property: by default, values stored into the
@@ -107,45 +96,30 @@ public class Controller implements PlayController, ControllerSupport {
      * request. Once that second request has been processed, those values are removed automatically from the storage
      *
      * This scope is very useful to display messages after issuing a Redirect.
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.flash - controller.flash.current()
      */
-    protected static Scope.Flash flash = null;
+    protected Scope.Flash flash = null;
     /**
      * The current HTTP params. This scope allows you to access the HTTP parameters supplied with the request.
      *
      * This is useful for example to know which submit button a user pressed on a form.
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.params - controller.params.current()
      */
-    protected static Scope.Params params = null;
+    protected Scope.Params params = null;
     /**
      * The current renderArgs scope: This is a hash map that is accessible during the rendering phase. It means you can
      * access variables stored in this scope during the rendering phase (the template phase).
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.renderArgs - controller.renderArgs.current()
      */
-    protected static Scope.RenderArgs renderArgs = null;
+    protected Scope.RenderArgs renderArgs = null;
     /**
      * The current routeArgs scope: This is a hash map that is accessible during the reverse routing phase. Any variable
      * added to this scope will be used for reverse routing. Useful when you have a param that you want to add to any
      * route without add it explicitly to every action method.
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.routeArgs - controller.routeArgs.current()
      */
-    protected static Scope.RouteArgs routeArgs = null;
+    protected Scope.RouteArgs routeArgs = null;
     /**
      * The current Validation object. It allows you to validate objects and to retrieve potential validations errors for
      * those objects.
-     *
-     * Note: The ControllersEnhancer makes sure that an appropriate thread local version is applied. ie :
-     * controller.validation - controller.validation.current()
      */
-    protected static Validation validation = null;
+    protected Validation validation = null;
 
     /**
      *
@@ -480,13 +454,6 @@ public class Controller implements PlayController, ControllerSupport {
     }
 
     /**
-     * Send a todo response
-     */
-    protected static void todo() {
-        notFound("This action has not been implemented Yet (" + request.action + ")");
-    }
-
-    /**
      * Send a 404 Not Found response if object is null
      *
      * @param o
@@ -524,9 +491,9 @@ public class Controller implements PlayController, ControllerSupport {
      *
      * @see play.templates.FastTags#_authenticityToken
      */
-    protected static void checkAuthenticity() {
-        if (Scope.Params.current().get("authenticityToken") == null
-                || !Scope.Params.current().get("authenticityToken").equals(Scope.Session.current().getAuthenticityToken())) {
+    protected static void checkAuthenticity(Context context) {
+        if (context.getParams().get("authenticityToken") == null
+                || !context.getParams().get("authenticityToken").equals(context.getSession().getAuthenticityToken())) {
             forbidden("Bad authenticity token");
         }
     }
@@ -596,8 +563,8 @@ public class Controller implements PlayController, ControllerSupport {
      * @param value
      *            The value
      */
-    protected static void flash(String key, Object value) {
-        Scope.Flash.current().put(key, value);
+    protected static void flash(Scope.Flash flash, String key, Object value) {
+        flash.put(key, value);
     }
 
     /**
@@ -616,13 +583,13 @@ public class Controller implements PlayController, ControllerSupport {
      * @param file
      *            The Location to redirect
      */
-    protected static void redirectToStatic(String file) {
+    protected static void redirectToStatic(Http.Request request, String file) {
         try {
             VirtualFile vf = Play.getVirtualFile(file);
             if (vf == null || !vf.exists()) {
                 throw new NoRouteFoundException(file);
             }
-            throw new RedirectToStatic(Router.reverse(Play.getVirtualFile(file)));
+            throw new RedirectToStatic(Router.reverse(request, Play.getVirtualFile(file)));
         } catch (NoRouteFoundException e) {
             StackTraceElement element = PlayException.getInterestingStackTraceElement(e);
             if (element != null) {
@@ -670,7 +637,7 @@ public class Controller implements PlayController, ControllerSupport {
      * @param args
      *            Method arguments
      */
-    protected static void redirect(String action, boolean permanent, Object... args) {
+    protected static void redirect(Context context, String action, boolean permanent, Object... args) {
         try {
             Map<String, Object> newArgs = new HashMap<>(args.length);
             Method actionMethod = (Method) ActionInvoker.getActionMethod(action)[1];
@@ -702,8 +669,7 @@ public class Controller implements PlayController, ControllerSupport {
 
             }
             try {
-
-                ActionDefinition actionDefinition = Router.reverse(action, newArgs);
+                ActionDefinition actionDefinition = Router.reverse(context, action, newArgs);
 
                 if (_currentReverse.get() != null) {
                     ActionDefinition currentActionDefinition = _currentReverse.get();
@@ -737,9 +703,9 @@ public class Controller implements PlayController, ControllerSupport {
         }
     }
 
-    protected static boolean templateExists(String templateName) {
+    protected static boolean templateExists(Http.Request request, String templateName) {
         try {
-            TemplateLoader.load(template(templateName));
+            TemplateLoader.load(template(request, templateName));
             return true;
         } catch (TemplateNotFoundException ex) {
             return false;
@@ -752,11 +718,11 @@ public class Controller implements PlayController, ControllerSupport {
      * @param templateName
      *            The template name
      */
-    protected static void renderTemplate(String templateName) {
+    protected static void renderTemplate(Context context, String templateName) {
         // Template datas
         Map<String, Object> templateBinding = new HashMap<>(16);
 
-        renderTemplate(templateName, templateBinding);
+        renderTemplate(context, templateName, templateBinding);
     }
 
     /**
@@ -767,17 +733,17 @@ public class Controller implements PlayController, ControllerSupport {
      * @param args
      *            The template data.
      */
-    protected static void renderTemplate(String templateName, Map<String, Object> args) {
+    protected static void renderTemplate(Context context, String templateName, Map<String, Object> args) {
         // Template datas
-        Scope.RenderArgs templateBinding = Scope.RenderArgs.current();
+        Scope.RenderArgs templateBinding = context.getRenderArgs();
         templateBinding.data.putAll(args);
-        templateBinding.put("session", Scope.Session.current());
-        templateBinding.put("request", Http.Request.current());
-        templateBinding.put("flash", Scope.Flash.current());
-        templateBinding.put("params", Scope.Params.current());
-        templateBinding.put("errors", Validation.errors());
+        templateBinding.put("session", context.getSession());
+        templateBinding.put("request", context.getRequest());
+        templateBinding.put("flash", context.getFlash());
+        templateBinding.put("params", context.getParams());
+        templateBinding.put("errors", context.getValidation().errors());
         try {
-            Template template = TemplateLoader.load(template(templateName));
+            Template template = TemplateLoader.load(template(context.getRequest(), templateName));
             throw new RenderTemplate(template, templateBinding.data);
         } catch (TemplateNotFoundException ex) {
             if (ex.isSourceAvailable()) {
@@ -800,18 +766,18 @@ public class Controller implements PlayController, ControllerSupport {
      * @param args
      *            The template data.
      */
-    protected static void renderTemplate(Map<String, Object> args) {
-        renderTemplate(template(), args);
+    protected static void renderTemplate(Context context, Map<String, Object> args) {
+        renderTemplate(context, template(context.getRequest()), args);
     }
 
     /**
      * Render the corresponding template (@see <code>template()</code>).
      *
      */
-    protected static void render() {
-        String templateName = template();
+    protected static void render(Context context) {
+        String templateName = template(context.getRequest());
 
-        renderTemplate(templateName);
+        renderTemplate(context, templateName);
     }
 
     /**
@@ -820,14 +786,13 @@ public class Controller implements PlayController, ControllerSupport {
      * 
      * @return The template name
      */
-    protected static String template() {
-        Request theRequest = Request.current();
-        String format = theRequest.format;
-        String templateName = theRequest.action.replace('.', '/') + "." + (format == null ? "html" : format);
+    protected static String template(Http.Request request) {
+        String format = request.format;
+        String templateName = request.action.replace('.', '/') + "." + (format == null ? "html" : format);
         if (templateName.startsWith("@")) {
             templateName = templateName.substring(1);
             if (!templateName.contains(".")) {
-                templateName = theRequest.controller + "." + templateName;
+                templateName = request.controller + "." + templateName;
             }
             templateName = templateName.replace('.', '/') + "." + (format == null ? "html" : format);
         }
@@ -842,13 +807,12 @@ public class Controller implements PlayController, ControllerSupport {
      *            The template name to work out
      * @return The template name
      */
-    protected static String template(String templateName) {
-        Request theRequest = Request.current();
-        String format = theRequest.format;
+    protected static String template(Http.Request request, String templateName) {
+        String format = request.format;
         if (templateName.startsWith("@")) {
             templateName = templateName.substring(1);
             if (!templateName.contains(".")) {
-                templateName = theRequest.controller + "." + templateName;
+                templateName = request.controller + "." + templateName;
             }
             templateName = templateName.replace('.', '/') + "." + (format == null ? "html" : format);
         }
@@ -864,8 +828,8 @@ public class Controller implements PlayController, ControllerSupport {
      *            The class type
      * @return Annotation object or null if not found
      */
-    protected static <T extends Annotation> T getActionAnnotation(Class<T> clazz) {
-        Method m = (Method) ActionInvoker.getActionMethod(Http.Request.current().action)[1];
+    protected static <T extends Annotation> T getActionAnnotation(Context context, Class<T> clazz) {
+        Method m = (Method) ActionInvoker.getActionMethod(context.getRequest().action)[1];
         if (m.isAnnotationPresent(clazz)) {
             return m.getAnnotation(clazz);
         }
@@ -881,9 +845,9 @@ public class Controller implements PlayController, ControllerSupport {
      *            The class type
      * @return Annotation object or null if not found
      */
-    protected static <T extends Annotation> T getControllerAnnotation(Class<T> clazz) {
-        if (getControllerClass().isAnnotationPresent(clazz)) {
-            return getControllerClass().getAnnotation(clazz);
+    protected static <T extends Annotation> T getControllerAnnotation(Http.Request request, Class<T> clazz) {
+        if (getControllerClass(request).isAnnotationPresent(clazz)) {
+            return getControllerClass(request).getAnnotation(clazz);
         }
         return null;
     }
@@ -897,8 +861,8 @@ public class Controller implements PlayController, ControllerSupport {
      *            The class type
      * @return Annotation object or null if not found
      */
-    protected static <T extends Annotation> T getControllerInheritedAnnotation(Class<T> clazz) {
-        Class<?> c = getControllerClass();
+    protected static <T extends Annotation> T getControllerInheritedAnnotation(Http.Request request, Class<T> clazz) {
+        Class<?> c = getControllerClass(request);
         while (!c.equals(Object.class)) {
             if (c.isAnnotationPresent(clazz)) {
                 return c.getAnnotation(clazz);
@@ -914,8 +878,8 @@ public class Controller implements PlayController, ControllerSupport {
      * @return Annotation object or null if not found
      */
     @SuppressWarnings("unchecked")
-    protected static Class<? extends Controller> getControllerClass() {
-        return (Class<? extends Controller>) Http.Request.current().controllerClass;
+    protected static Class<? extends Controller> getControllerClass(Http.Request request) {
+        return (Class<? extends Controller>) request.controllerClass;
     }
 
     /**
@@ -931,8 +895,8 @@ public class Controller implements PlayController, ControllerSupport {
      * @deprecated
      */
     @Deprecated
-    protected static void waitFor(Future<?> task) {
-        Request.current().isNew = false;
+    protected static void waitFor(Http.Request request, Future<?> task) {
+        request.isNew = false;
         throw new Suspend(task);
     }
 

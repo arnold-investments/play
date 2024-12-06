@@ -7,6 +7,7 @@ import java.util.List;
 
 import play.data.Upload;
 import play.data.binding.TypeBinder;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 
 /**
@@ -16,11 +17,11 @@ public class FileBinder implements TypeBinder<File> {
 
     @Override
     @SuppressWarnings("unchecked")
-    public File bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
+    public File bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         if (value == null || value.isBlank()) {
             return null;
         }
-        Request req = Request.current();
+        Request req = context == null ? null : context.getRequest();
         if (req != null && req.args != null) {
             List<Upload> uploads = (List<Upload>) req.args.get("__UPLOADS");
             if (uploads != null) {

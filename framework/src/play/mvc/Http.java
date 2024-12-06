@@ -249,10 +249,7 @@ public class Http {
          * Full action (ex: Application.index)
          */
         public String action;
-        /**
-         * Bind to thread
-         */
-        public static final ThreadLocal<Request> current = new ThreadLocal<>();
+
         /**
          * The really invoker Java method
          */
@@ -296,7 +293,7 @@ public class Http {
         /**
          * Params
          */
-        public final Scope.Params params = new Scope.Params();
+        public final Scope.Params params = new Scope.Params(this);
 
         /**
          * Deprecate the default constructor to encourage the use of createRequest() when creating new requests.
@@ -516,14 +513,6 @@ public class Http {
             }
         }
 
-        /**
-         * Retrieve the current request
-         * 
-         * @return the current request
-         */
-        public static Request current() {
-            return current.get();
-        }
 
         /**
          * Useful because we sometime use a lazy request loader
@@ -560,7 +549,7 @@ public class Http {
 
         @Override
         public String toString() {
-            return method + " " + path + (querystring != null && querystring.length() > 0 ? "?" + querystring : "");
+            return method + " " + path + (querystring != null && !querystring.isEmpty() ? "?" + querystring : "");
         }
 
         /**
@@ -639,19 +628,7 @@ public class Http {
          * The encoding used when writing response to client
          */
         public String encoding = Play.defaultWebEncoding;
-        /**
-         * Bind to thread
-         */
-        public static final ThreadLocal<Response> current = new ThreadLocal<>();
 
-        /**
-         * Retrieve the current response
-         * 
-         * @return the current response
-         */
-        public static Response current() {
-            return current.get();
-        }
 
         /**
          * Get a response header
@@ -853,7 +830,7 @@ public class Http {
 
         public void print(Object o) {
             try {
-                out.write(o.toString().getBytes(Response.current().encoding));
+                out.write(o.toString().getBytes());
             } catch (IOException ex) {
                 throw new UnexpectedException("Encoding problem ?", ex);
             }
@@ -887,15 +864,10 @@ public class Http {
      */
     public abstract static class Inbound {
 
-        public static final ThreadLocal<Inbound> current = new ThreadLocal<>();
         final BlockingEventStream<WebSocketEvent> stream;
 
         public Inbound(ChannelHandlerContext ctx) {
             stream = new BlockingEventStream<>(ctx);
-        }
-
-        public static Inbound current() {
-            return current.get();
         }
 
         public void _received(WebSocketFrame frame) {
@@ -920,13 +892,6 @@ public class Http {
      * A Websocket Outbound channel
      */
     public abstract static class Outbound {
-
-        public static final ThreadLocal<Outbound> current = new ThreadLocal<>();
-
-        public static Outbound current() {
-            return current.get();
-        }
-
         public abstract void send(String data);
 
         public abstract void send(byte opcode, byte[] data, int offset, int length);

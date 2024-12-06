@@ -2,6 +2,7 @@ package play.data.binding.types;
 
 import play.data.Upload;
 import play.data.binding.TypeBinder;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 
 import java.lang.annotation.Annotation;
@@ -17,11 +18,11 @@ public class ByteArrayArrayBinder implements TypeBinder<byte[][]> {
 
     @SuppressWarnings("unchecked")
     @Override
-    public byte[][] bind(String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
+    public byte[][] bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) {
         if (value == null || value.trim().length() == 0) {
             return null;
         }
-        Request req = Request.current();
+        Request req = context == null ? null : context.getRequest();
         if (req != null && req.args != null) {
             List<byte[]> byteList = new ArrayList<>();
             List<Upload> uploads = (List<Upload>) req.args.get("__UPLOADS");

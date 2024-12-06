@@ -6,6 +6,7 @@ import java.util.*;
 
 import play.Logger;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 
 /**
  * Parameters map to POJO binder.
@@ -225,16 +226,16 @@ public class BeanWrapper {
         }
     }
 
-    public Object bind(String name, Type type, Map<String, String[]> params, String prefix, Annotation[] annotations) throws Exception {
+    public Object bind(Context context, String name, Type type, Map<String, String[]> params, String prefix, Annotation[] annotations) throws Exception {
         Object instance = newBeanInstance();
-        return bind(name, type, params, prefix, instance, annotations);
+        return bind(context, name, type, params, prefix, instance, annotations);
     }
 
-    public Object bind(String name, Type type, Map<String, String[]> params, String prefix, Object instance, Annotation[] annotations) throws Exception {
+    public Object bind(Context context, String name, Type type, Map<String, String[]> params, String prefix, Object instance, Annotation[] annotations) throws Exception {
         RootParamNode paramNode = RootParamNode.convert( params);
         // when looking at the old code in BeanBinder and Binder.bindInternal, I
         // think it is correct to use 'name+prefix'
-        Binder.bindBean( paramNode.getChild(name+prefix), instance, annotations);
+        Binder.bindBean(context, paramNode.getChild(name+prefix), instance, annotations);
         return instance;
     }
 }

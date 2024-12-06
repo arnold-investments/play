@@ -58,10 +58,10 @@ public class Scope {
         final Map<String, String> data = new HashMap<>();
         final Map<String, String> out = new HashMap<>();
 
-        public static Flash restore() {
+        public static Flash restore(Http.Request request) {
             try {
                 Flash flash = new Flash();
-                Http.Cookie cookie = Http.Request.current().cookies.get(COOKIE_PREFIX + "_FLASH");
+                Http.Cookie cookie = request.cookies.get(COOKIE_PREFIX + "_FLASH");
                 if (cookie != null) {
                     CookieDataCodec.decode(flash.data, cookie.value);
                 }
@@ -71,29 +71,23 @@ public class Scope {
             }
         }
 
-        void save() {
-            if (Http.Response.current() == null) {
+        void save(Context context) {
+            if (context.getResponse() == null) {
                 // Some request like WebSocket don't have any response
                 return;
             }
             if (out.isEmpty()) {
-                if (Http.Request.current().cookies.containsKey(COOKIE_PREFIX + "_FLASH") || !SESSION_SEND_ONLY_IF_CHANGED) {
-                    Http.Response.current().setCookie(COOKIE_PREFIX + "_FLASH", "", null, "/", 0, COOKIE_SECURE, SESSION_HTTPONLY);
+                if (context.getRequest().cookies.containsKey(COOKIE_PREFIX + "_FLASH") || !SESSION_SEND_ONLY_IF_CHANGED) {
+                    context.getResponse().setCookie(COOKIE_PREFIX + "_FLASH", "", null, "/", 0, COOKIE_SECURE, SESSION_HTTPONLY);
                 }
                 return;
             }
             try {
                 String flashData = CookieDataCodec.encode(out);
-                Http.Response.current().setCookie(COOKIE_PREFIX + "_FLASH", flashData, null, "/", null, COOKIE_SECURE, SESSION_HTTPONLY);
+                context.getResponse().setCookie(COOKIE_PREFIX + "_FLASH", flashData, null, "/", null, COOKIE_SECURE, SESSION_HTTPONLY);
             } catch (Exception e) {
                 throw new UnexpectedException("Flash serializationProblem", e);
             }
-        } // ThreadLocal access
-
-        public static final ThreadLocal<Flash> current = new ThreadLocal<>();
-
-        public static Flash current() {
-            return current.get();
         }
 
         public void put(String key, String value) {
@@ -181,11 +175,6 @@ public class Scope {
 
         final Map<String, String> data = new HashMap<>(); // ThreadLocal access
         boolean changed = false;
-        public static final ThreadLocal<Session> current = new ThreadLocal<>();
-
-        public static Session current() {
-            return current.get();
-        }
 
         public String getId() {
             if (!data.containsKey(ID_KEY)) {
@@ -283,19 +272,17 @@ public class Scope {
      * HTTP params
      */
     public static class Params {
-        // ThreadLocal access
-
-        public static final ThreadLocal<Params> current = new ThreadLocal<>();
-
-        public static Params current() {
-            return current.get();
-        }
-
         boolean requestIsParsed;
         public final Map<String, String[]> data = new LinkedHashMap<>();
 
         boolean rootParamsNodeIsGenerated = false;
         private RootParamNode rootParamNode = null;
+
+        private final Http.Request request;
+
+        public Params(Http.Request request) {
+            this.request = request;
+        }
 
         public RootParamNode getRootParamNode() {
             checkAndParse();
@@ -312,7 +299,6 @@ public class Scope {
 
         public void checkAndParse() {
             if (!requestIsParsed) {
-                Http.Request request = Http.Request.current();
                 if (request == null) {
                     throw new UnexpectedException("Current request undefined");
                 } else {
@@ -372,26 +358,26 @@ public class Scope {
         }
 
         @SuppressWarnings("unchecked")
-        public <T> T get(String key, Class<T> type) {
+        public <T> T get(Context context, String key, Class<T> type) {
             try {
                 checkAndParse();
                 // TODO: This is used by the test, but this is not the most
                 // convenient.
-                return (T) Binder.bind(getRootParamNode(), key, type, type, null);
+                return (T) Binder.bind(context, getRootParamNode(), key, type, type, null);
             } catch (RuntimeException e) {
                 Logger.error(e, "Failed to get %s of type %s", key, type);
-                Validation.addError(key, "validation.invalid");
+                context.getValidation().addError(key, "validation.invalid");
                 return null;
             }
         }
 
         @SuppressWarnings("unchecked")
-        public <T> T get(Annotation[] annotations, String key, Class<T> type) {
+        public <T> T get(Context context, Annotation[] annotations, String key, Class<T> type) {
             try {
-                return (T) Binder.directBind(annotations, get(key), type, null);
+                return (T) Binder.directBind(context, annotations, get(key), type, null);
             } catch (Exception e) {
                 Logger.error(e, "Failed to get %s of type %s", key, type);
-                Validation.addError(key, "validation.invalid");
+                context.getValidation().addError(key, "validation.invalid");
                 return null;
             }
         }
@@ -444,9 +430,9 @@ public class Scope {
             }
         }
 
-        public String urlEncode() {
+        public String urlEncode(Http.Response response) {
             checkAndParse();
-            String encoding = Http.Response.current().encoding;
+            String encoding = response.encoding;
             StringBuilder ue = new StringBuilder();
             for (String key : data.keySet()) {
                 if (key.equals("body")) {
@@ -464,40 +450,14 @@ public class Scope {
             return ue.toString();
         }
 
-        public void flash(String... params) {
+        public void flash(Flash flash, String... params) {
             if (params.length == 0) {
                 for (String key : all().keySet()) {
-                    if (data.get(key).length > 1) {
-                        StringBuilder sb = new StringBuilder();
-                        boolean comma = false;
-                        for (String d : data.get(key)) {
-                            if (comma) {
-                                sb.append(",");
-                            }
-                            sb.append(d);
-                            comma = true;
-                        }
-                        Flash.current().put(key, sb.toString());
-                    } else {
-                        Flash.current().put(key, get(key));
-                    }
+                    flash.put(key, String.join(",", data.get(key)));
                 }
             } else {
                 for (String key : params) {
-                    if (data.get(key).length > 1) {
-                        StringBuilder sb = new StringBuilder();
-                        boolean comma = false;
-                        for (String d : data.get(key)) {
-                            if (comma) {
-                                sb.append(",");
-                            }
-                            sb.append(d);
-                            comma = true;
-                        }
-                        Flash.current().put(key, sb.toString());
-                    } else {
-                        Flash.current().put(key, get(key));
-                    }
+                    flash.put(key, String.join(",", data.get(key)));
                 }
             }
         }
@@ -514,11 +474,6 @@ public class Scope {
     public static class RenderArgs {
 
         public final Map<String, Object> data = new HashMap<>(); // ThreadLocal access
-        public static final ThreadLocal<RenderArgs> current = new ThreadLocal<>();
-
-        public static RenderArgs current() {
-            return current.get();
-        }
 
         public void put(String key, Object arg) {
             this.data.put(key, arg);
@@ -545,11 +500,6 @@ public class Scope {
     public static class RouteArgs {
 
         public final Map<String, Object> data = new HashMap<>(); // ThreadLocal access
-        public static final ThreadLocal<RouteArgs> current = new ThreadLocal<>();
-
-        public static RouteArgs current() {
-            return current.get();
-        }
 
         public void put(String key, Object arg) {
             this.data.put(key, arg);
