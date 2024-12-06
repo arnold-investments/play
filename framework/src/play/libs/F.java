@@ -52,6 +52,15 @@ public class F {
             return result;
         }
 
+        public Throwable getException() throws InterruptedException {
+            taskLock.await();
+            return exception;
+        }
+
+        public Throwable getExceptionOrNull() {
+            return exception;
+        }
+
         @Override
         public V get() throws InterruptedException, ExecutionException {
             taskLock.await();

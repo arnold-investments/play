@@ -2,6 +2,9 @@ package play.mvc;
 
 import com.jamonapi.Monitor;
 import com.jamonapi.MonitorFactory;
+import java.io.UnsupportedEncodingException;
+import java.util.concurrent.ExecutionException;
+import play.Invoker;
 import play.Logger;
 import play.Play;
 import play.cache.Cache;
@@ -37,7 +40,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
-import java.util.concurrent.Future;
 
 /**
  * Invoke an action after an HTTP request.
@@ -104,89 +106,17 @@ public class ActionInvoker {
     }
 
     public static void invoke(Http.Request request, Http.Response response) {
-        Monitor monitor = null;
+        _invoke(request, response, ActionInvoker::invokeAction, ActionInvoker::prepareInvokeAction);
+    }
+
+    private static void _invoke(Http.Request request, Http.Response response, IInvokeAction action, IPrepareInvokeAction prepareAction) {
+        var ctx = new WrapInvokeActionCtx();
+        boolean skipFinally = false;
 
         try {
-            initActionContext(request, response);
-            Method actionMethod = request.invokedMethod;
+            ctx.monitor = prepareAction.apply(request, response);
 
-            // 1. Prepare request params
-            Scope.Params.current().__mergeWith(request.routeArgs);
-
-            // add parameters from the URI query string
-            String encoding = Http.Request.current().encoding;
-            Scope.Params.current()
-                    ._mergeWith(UrlEncodedParser.parseQueryString(new ByteArrayInputStream(request.querystring.getBytes(encoding))));
-
-            // 2. Easy debugging ...
-            if (Play.mode == Play.Mode.DEV) {
-                Controller.class.getDeclaredField("params").set(null, Scope.Params.current());
-                Controller.class.getDeclaredField("request").set(null, Http.Request.current());
-                Controller.class.getDeclaredField("response").set(null, Http.Response.current());
-                Controller.class.getDeclaredField("session").set(null, Scope.Session.current());
-                Controller.class.getDeclaredField("flash").set(null, Scope.Flash.current());
-                Controller.class.getDeclaredField("renderArgs").set(null, Scope.RenderArgs.current());
-                Controller.class.getDeclaredField("routeArgs").set(null, Scope.RouteArgs.current());
-                Controller.class.getDeclaredField("validation").set(null, Validation.current());
-            }
-
-            ControllerInstrumentation.stopActionCall();
-            Play.pluginCollection.beforeActionInvocation(actionMethod);
-
-            // Monitoring
-            monitor = MonitorFactory.start(request.action + "()");
-
-            String cacheKey = null;
-            Result actionResult = null;
-
-            // 3. Invoke the action
-            try {
-                // @Before
-                handleBefores(request);
-
-                // Action
-
-                // Check the cache (only for GET or HEAD)
-                if ((request.method.equals("GET") || request.method.equals("HEAD")) && actionMethod.isAnnotationPresent(CacheFor.class)) {
-                    CacheFor cacheFor = actionMethod.getAnnotation(CacheFor.class);;
-                    cacheKey = cacheFor.id();
-                    if ("".equals(cacheKey)) {
-                        // Generate a cache key for this request
-                        cacheKey = cacheFor.generator().getDeclaredConstructor().newInstance().generate(request);
-                    }
-                    if(cacheKey != null && !cacheKey.isEmpty()) {
-                    	actionResult = (Result) Cache.get(cacheKey);
-                    }
-                }
-
-                if (actionResult == null) {
-                    ControllerInstrumentation.initActionCall();
-                    inferResult(invokeControllerMethod(actionMethod));
-                }
-            } catch (Result result) {
-                actionResult = result;
-                // Cache it if needed
-                if (cacheKey != null && !cacheKey.isEmpty()) {
-                    Cache.set(cacheKey, actionResult, actionMethod.getAnnotation(CacheFor.class).value());
-                }
-            } catch (JavaExecutionException e) {
-                invokeControllerCatchMethods(e.getCause());
-                throw e;
-            }
-
-            // @After
-            handleAfters(request);
-
-            monitor.stop();
-            monitor = null;
-
-            // OK, re-throw the original action result
-            if (actionResult != null) {
-                throw actionResult;
-            }
-
-            throw new NoResult();
-
+            wrapInvokeAction(request, ctx, action);
         } catch (Result result) {
             Play.pluginCollection.onActionInvocationResult(result);
 
@@ -201,9 +131,23 @@ public class ActionInvoker {
 
             // @Finally
             handleFinallies(request, null);
-
         } catch (JavaExecutionException e) {
             handleFinallies(request, e.getCause());
+            throw e;
+        } catch (Invoker.AsyncRequest e) {
+            skipFinally = true;
+            e.getTask().onRedeem(p -> {
+                initActionContext(request, response);
+
+                _invoke(request, response, (ignore1, ignore2, ignore3) -> {
+	                Throwable throwable = p.getException();
+                    if (throwable instanceof Exception exception) {
+                        throw exception;
+                    } else if (throwable != null){
+                        throw new ExecutionException(throwable);
+                    }
+                }, (ignore1, ignore2) -> ctx.monitor);
+            });
             throw e;
         } catch (PlayException e) {
             handleFinallies(request, e);
@@ -212,12 +156,119 @@ public class ActionInvoker {
             handleFinallies(request, e);
             throw new UnexpectedException(e);
         } finally {
-            Play.pluginCollection.onActionInvocationFinally();
+            if (!skipFinally) {
+                Play.pluginCollection.onActionInvocationFinally();
 
-            if (monitor != null) {
-                monitor.stop();
+                if (ctx.monitor != null) {
+                    ctx.monitor.stop();
+                }
             }
         }
+    }
+
+    private static class InvokeActionResult {
+        private String cacheKey;
+        private Result actionResult;
+    }
+
+    private static class WrapInvokeActionCtx {
+        private Monitor monitor;
+    }
+
+    private interface IInvokeAction {
+        void apply(Request request, Method actionMethod, InvokeActionResult invokeActionResult) throws Exception;
+    }
+
+    private static void wrapInvokeAction(Request request, WrapInvokeActionCtx wrapInvokeActionCtx, IInvokeAction invokeActionMethod) throws Exception {
+        Method actionMethod = request.invokedMethod;
+        InvokeActionResult res = new InvokeActionResult();
+
+        // 3. Invoke the action
+        try {
+            invokeActionMethod.apply(request, actionMethod, res);
+        } catch (Result result) {
+            res.actionResult = result;
+            // Cache it if needed
+            if (res.cacheKey != null && !res.cacheKey.isEmpty()) {
+                Cache.set(res.cacheKey, res.actionResult, actionMethod.getAnnotation(CacheFor.class).value());
+            }
+        } catch (JavaExecutionException e) {
+            invokeControllerCatchMethods(e.getCause());
+            throw e;
+        }
+
+        // @After
+        handleAfters(request);
+
+        wrapInvokeActionCtx.monitor.stop();
+        wrapInvokeActionCtx.monitor = null;
+
+        // OK, re-throw the original action result
+        if (res.actionResult != null) {
+            throw res.actionResult;
+        }
+
+        throw new NoResult();
+    }
+
+    private static void invokeAction(Request request, Method actionMethod, InvokeActionResult invokeActionResult) throws Exception {
+        // @Before
+        handleBefores(request);
+
+        // Action
+
+        // Check the cache (only for GET or HEAD)
+        if ((request.method.equals("GET") || request.method.equals("HEAD")) && actionMethod.isAnnotationPresent(CacheFor.class)) {
+            CacheFor cacheFor = actionMethod.getAnnotation(CacheFor.class);;
+            invokeActionResult.cacheKey = cacheFor.id();
+            if (invokeActionResult.cacheKey != null && invokeActionResult.cacheKey.isEmpty()) {
+                // Generate a cache key for this request
+                invokeActionResult.cacheKey = cacheFor.generator().getDeclaredConstructor().newInstance().generate(request);
+            }
+            if(invokeActionResult.cacheKey != null && !invokeActionResult.cacheKey.isEmpty()) {
+                invokeActionResult.actionResult = (Result) Cache.get(invokeActionResult.cacheKey);
+            }
+        }
+
+        if (invokeActionResult.actionResult == null) {
+            ControllerInstrumentation.initActionCall();
+            inferResult(invokeControllerMethod(actionMethod));
+        }
+    }
+
+    private interface IPrepareInvokeAction {
+        Monitor apply(Request request, Http.Response response) throws NoSuchFieldException, UnsupportedEncodingException, IllegalAccessException;
+    }
+
+    private static Monitor prepareInvokeAction(Request request, Http.Response response) throws NoSuchFieldException, UnsupportedEncodingException, IllegalAccessException {
+        initActionContext(request, response);
+        Method actionMethod = request.invokedMethod;
+
+        // 1. Prepare request params
+        Scope.Params.current().__mergeWith(request.routeArgs);
+
+        // add parameters from the URI query string
+        String encoding = Http.Request.current().encoding;
+        Scope.Params.current()
+            ._mergeWith(UrlEncodedParser.parseQueryString(new ByteArrayInputStream(request.querystring.getBytes(encoding))));
+
+        // 2. Easy debugging ...
+        if (Play.mode == Play.Mode.DEV) {
+            Controller.class.getDeclaredField("params").set(null, Scope.Params.current());
+            Controller.class.getDeclaredField("request").set(null, Http.Request.current());
+            Controller.class.getDeclaredField("response").set(null, Http.Response.current());
+            Controller.class.getDeclaredField("session").set(null, Scope.Session.current());
+            Controller.class.getDeclaredField("flash").set(null, Scope.Flash.current());
+            Controller.class.getDeclaredField("renderArgs").set(null, Scope.RenderArgs.current());
+            Controller.class.getDeclaredField("routeArgs").set(null, Scope.RouteArgs.current());
+            Controller.class.getDeclaredField("validation").set(null, Validation.current());
+        }
+
+        ControllerInstrumentation.stopActionCall();
+        Play.pluginCollection.beforeActionInvocation(actionMethod);
+
+        // Monitoring
+        return MonitorFactory.start(request.action + "()");
     }
 
     private static void invokeControllerCatchMethods(Throwable throwable) throws Exception {

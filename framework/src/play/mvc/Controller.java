@@ -6,32 +6,26 @@ import com.thoughtworks.xstream.XStream;
 import java.io.File;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
-
 import org.w3c.dom.Document;
 import play.Invoker;
 import play.Invoker.Suspend;
 import play.Logger;
 import play.Play;
 import play.classloading.ApplicationClasses.ApplicationClass;
-import play.classloading.enhancers.ControllersEnhancer.ControllerInstrumentation;
 import play.classloading.enhancers.ControllersEnhancer.ControllerSupport;
 import play.data.binding.Unbinder;
 import play.data.validation.Validation;
-
 import play.exceptions.NoRouteFoundException;
 import play.exceptions.PlayException;
 import play.exceptions.TemplateNotFoundException;
 import play.exceptions.UnexpectedException;
 import play.libs.F;
-import play.libs.Time;
 import play.mvc.Http.Request;
 import play.mvc.Router.ActionDefinition;
 import play.mvc.results.BadRequest;
@@ -48,7 +42,6 @@ import play.mvc.results.RenderJson;
 import play.mvc.results.RenderTemplate;
 import play.mvc.results.RenderText;
 import play.mvc.results.RenderXml;
-import play.mvc.results.Result;
 import play.mvc.results.Unauthorized;
 import play.templates.Template;
 import play.templates.TemplateLoader;
@@ -944,9 +937,22 @@ public class Controller implements PlayController, ControllerSupport {
     }
 
     protected static <T> void await(F.Promise<T> promise, F.Action<T> callback) {
-        promise.onRedeem(p -> callback.invoke(p.getOrNull()));
+        F.Promise<Void> chainedPromise = new F.Promise<>();
 
-        throw new Invoker.AsyncRequest(promise);
+        promise.onRedeem(p -> {
+            Throwable throwable = null;
+
+            try {
+                callback.invoke(p.getOrNull());
+            } catch (Throwable t) {
+                throwable = t;
+            } finally {
+                chainedPromise.invokeWithException(throwable);
+            }
+        });
+
+
+        throw new Invoker.AsyncRequest(chainedPromise);
     }
 
     /**

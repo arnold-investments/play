@@ -327,13 +327,18 @@ public class Invoker {
                 }
             } catch (AsyncRequest e) {
                 skipFinally = true;
+
                 e.task.onRedeem(p -> {
                     try {
-                        after();
+                        onSuccess();
+                    } catch (Throwable ex) {
+                        onException(ex);
                     } finally {
                         _finally();
                     }
                 });
+
+                after();
             } catch (Suspend e) {
                 suspend(e);
                 after();
@@ -383,7 +388,7 @@ public class Invoker {
     }
 
     public static class AsyncRequest extends PlayException {
-        Promise<?> task;
+        private final Promise<?> task;
 
         public AsyncRequest(Promise<?> task) {
             this.task = task;
@@ -397,6 +402,10 @@ public class Invoker {
         @Override
         public String getErrorDescription() {
             return "Just wait for it.";
+        }
+
+        public Promise<?> getTask() {
+            return task;
         }
     }
 

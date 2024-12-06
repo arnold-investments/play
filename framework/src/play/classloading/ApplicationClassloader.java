@@ -84,11 +84,11 @@ public class ApplicationClassloader extends ClassLoader {
         }
         pathHash = computePathHash();
         try {
-            CodeSource codeSource = new CodeSource(new URI("file:" + Play.applicationPath.getAbsolutePath()).toURL(), (Certificate[]) null);
+            CodeSource codeSource = new CodeSource(Path.of(Play.applicationPath.getAbsolutePath()).toUri().toURL(), (Certificate[]) null);
             Permissions permissions = new Permissions();
             permissions.add(new AllPermission());
             protectionDomain = new ProtectionDomain(codeSource, permissions);
-        } catch (URISyntaxException | MalformedURLException e) {
+        } catch (MalformedURLException e) {
             throw new UnexpectedException(e);
         }
     }
