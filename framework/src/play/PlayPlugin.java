@@ -4,7 +4,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.List;
@@ -204,16 +203,11 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
 
     /**
      * Give a chance to this plugin to fully manage this request
-     * 
-     * @param request
-     *            The Play request
-     * @param response
-     *            The Play response
-     * @return true if this plugin has managed this request
-     * @throws java.lang.Exception
-     *             if cannot enhance the class
+     *
+     * @param context@return true if this plugin has managed this request
+     * @throws java.lang.Exception if cannot enhance the class
      */
-    public boolean rawInvocation(Request request, Response response) throws Exception {
+    public boolean rawInvocation(Context context) throws Exception {
         return false;
     }
 
@@ -280,37 +274,34 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
     /**
      * Called before a Play! invocation. Time to prepare request specific things.
      */
-    public void beforeInvocation() {
+    public void beforeInvocation(Context context) {
     }
 
     /**
      * Called after an invocation. (unless an exception has been thrown). Time to close request specific things.
      */
-    public void afterInvocation() {
+    public void afterInvocation(Context context) {
     }
 
     /**
      * Called if an exception occurred during the invocation.
-     * 
-     * @param e
-     *            The caught exception.
+     *
+     * @param context
+     * @param e       The caught exception.
      */
-    public void onInvocationException(Throwable e) {
+    public void onInvocationException(Context context, Throwable e) {
     }
 
     /**
      * Called at the end of the invocation. (even if an exception occurred). Time to close request specific things.
      */
-    public void invocationFinally() {
+    public void invocationFinally(Context context) {
     }
 
     /**
      * Called before an 'action' invocation, ie an HTTP request processing.
-     * 
-     * @param actionMethod
-     *            name of the method
      */
-    public void beforeActionInvocation(Method actionMethod) {
+    public void beforeActionInvocation(Context context) {
     }
 
     /**
@@ -319,10 +310,10 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
      * @param result
      *            The result object for the request.
      */
-    public void onActionInvocationResult(Result result) {
+    public void onActionInvocationResult(Context context, Result result) {
     }
 
-    public void onInvocationSuccess() {
+    public void onInvocationSuccess(Context context) {
     }
 
     /**

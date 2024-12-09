@@ -23,6 +23,8 @@ public class Context {
 
 	private Stack<String> currentAction;
 
+	private String locale;
+
 	public Context(Http.Request request, Http.Response response) {
 		this(request, response, null, null);
 	}
@@ -39,8 +41,8 @@ public class Context {
 
 		renderArgs = new Scope.RenderArgs();
 		routeArgs = new Scope.RouteArgs();
-		session = Scope.Session.restore();
-		flash = Scope.Flash.restore(request);
+		session = this.request == null ? new Scope.Session() : Scope.Session.restore(this);
+		flash = this.request == null ? new Scope.Flash() : Scope.Flash.restore(request);
 
 		initCachedBoundActionMethodArgs();
 
@@ -126,5 +128,13 @@ public class Context {
 
 	public Scope.RouteArgs getRouteArgs() {
 		return routeArgs;
+	}
+
+	public String getLocale() {
+		return locale;
+	}
+
+	public void setLocale(String locale) {
+		this.locale = locale;
 	}
 }

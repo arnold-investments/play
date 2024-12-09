@@ -1,15 +1,11 @@
 package play.mvc.results;
 
 import java.util.Map;
-
 import play.Play;
 import play.exceptions.UnexpectedException;
 import play.libs.MimeTypes;
 import play.mvc.Context;
 import play.mvc.Http;
-import play.mvc.Http.Request;
-import play.mvc.Http.Response;
-import play.mvc.Scope;
 import play.templates.TemplateLoader;
 
 /**
@@ -39,7 +35,7 @@ public class Error extends Result {
         if (request.isAjax() && "html".equals(format)) {
             format = "txt";
         }
-        response.contentType = MimeTypes.getContentType("xx." + format);
+        response.contentType = MimeTypes.getContentType(context, "xx." + format);
         Map<String, Object> binding = context.getRenderArgs().data;
         binding.put("exception", this);
         binding.put("result", this);
@@ -50,12 +46,12 @@ public class Error extends Result {
         binding.put("play", new Play());
         String errorHtml = getMessage();
         try {
-            errorHtml = TemplateLoader.load("errors/" + this.status + "." + (format == null ? "html" : format)).render(binding);
+            errorHtml = TemplateLoader.load("errors/" + this.status + "." + (format == null ? "html" : format)).render(context, binding);
         } catch (Exception e) {
             // no template in desired format, just display the default response
         }
         try {
-            response.out.write(errorHtml.getBytes(getEncoding()));
+            response.out.write(errorHtml.getBytes(getEncoding(context.getResponse())));
         } catch (Exception e) {
             throw new UnexpectedException(e);
         }

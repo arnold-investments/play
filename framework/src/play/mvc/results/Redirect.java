@@ -1,12 +1,12 @@
 package play.mvc.results;
 
+import java.util.Map;
+import java.util.Map.Entry;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
-
-import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * 302 Redirect
@@ -55,15 +55,20 @@ public class Redirect extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
+    public void apply(Context context) {
+	    Request request = context.getRequest();
+	    Response response = context.getResponse();
+
         try {
             // do not touch any valid uri: http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.30 
-            if (url.matches("^\\w+://.*")) {
-            } else if (url.startsWith("/")) {
-                url = String.format("http%s://%s%s%s", request.secure ? "s" : "", request.domain, (request.port == 80 || request.port == 443) ? "" : ":" + request.port, url);
-            } else {
-                url = String.format("http%s://%s%s%s%s", request.secure ? "s" : "", request.domain, (request.port == 80 || request.port == 443) ? "" : ":" + request.port, request.path, request.path.endsWith("/") ? url : "/" + url);
+            if (!url.matches("^\\w+://.*")) {
+                if (url.startsWith("/")) {
+                    url = String.format("http%s://%s%s%s", request.secure ? "s" : "", request.domain, (request.port == 80 || request.port == 443) ? "" : ":" + request.port, url);
+                } else {
+                    url = String.format("http%s://%s%s%s%s", request.secure ? "s" : "", request.domain, (request.port == 80 || request.port == 443) ? "" : ":" + request.port, request.path, request.path.endsWith("/") ? url : "/" + url);
+                }
             }
+
             response.status = code;
             response.setHeader("Location", url);
         } catch (Exception e) {

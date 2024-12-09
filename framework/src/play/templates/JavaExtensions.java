@@ -1,5 +1,8 @@
 package play.templates;
 
+import groovy.lang.Closure;
+import groovy.xml.XmlSlurper;
+import groovy.xml.slurpersupport.GPathResult;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
@@ -20,16 +23,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
-
 import org.apache.commons.text.StringEscapeUtils;
-
-import groovy.lang.Closure;
-import groovy.xml.XmlSlurper;
-import groovy.xml.slurpersupport.GPathResult;
 import play.Logger;
 import play.i18n.Lang;
 import play.i18n.Messages;
 import play.libs.I18N;
+import play.mvc.Context;
 import play.mvc.Http;
 import play.templates.BaseTemplate.RawData;
 import play.utils.HTML;
@@ -159,18 +158,18 @@ public class JavaExtensions {
         return StringEscapeUtils.escapeXml11(str);
     }
 
-    public static String format(Number number, String pattern) {
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Lang.getLocale());
+    public static String format(Number number, String pattern, String locale) {
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Lang.getLocale(locale));
         return new DecimalFormat(pattern, symbols).format(number);
     }
 
-    public static String format(Date date) {
+    public static String format(Date date, Context context) {
         // Get the pattern from the configuration
-        return format(date, I18N.getDateFormat());
+        return format(date, I18N.getDateFormat(context), context);
     }
 
-    public static String format(Date date, String pattern) {
-        return format(date, pattern, Lang.get());
+    public static String format(Date date, String pattern, Context context) {
+        return format(date, pattern, Lang.get(context));
     }
 
     public static String format(Date date, String pattern, String lang) {
@@ -187,58 +186,6 @@ public class JavaExtensions {
         return number.intValue() / pageSize + (number.intValue() % pageSize > 0 ? 1 : 0);
     }
 
-    public static String since(Date date) {
-        return since(date, false);
-    }
-
-    public static String since(Date date, Boolean stopAtMonth) {
-        Date now = new Date();
-        if (now.before(date)) {
-            return "";
-        }
-        long delta = (now.getTime() - date.getTime()) / 1000;
-        if (delta < 60) {
-            return Messages.get("since.seconds", delta, pluralize(delta));
-        }
-        if (delta < 60 * 60) {
-            long minutes = delta / 60;
-            return Messages.get("since.minutes", minutes, pluralize(minutes));
-        }
-        if (delta < 24 * 60 * 60) {
-            long hours = delta / (60 * 60);
-            return Messages.get("since.hours", hours, pluralize(hours));
-        }
-        if (delta < 30 * 24 * 60 * 60) {
-            long days = delta / (24 * 60 * 60);
-            return Messages.get("since.days", days, pluralize(days));
-        }
-        if (stopAtMonth) {
-            return asdate(date.getTime(), Messages.get("since.format"));
-        }
-        if (delta < 365 * 24 * 60 * 60) {
-            long months = delta / (30 * 24 * 60 * 60);
-            return Messages.get("since.months", months, pluralize(months));
-        }
-        long years = delta / (365 * 24 * 60 * 60);
-        return Messages.get("since.years", years, pluralize(years));
-    }
-
-    public static String asdate(Long timestamp) {
-        return asdate(timestamp, I18N.getDateFormat());
-    }
-
-    public static String asdate(Long timestamp, String pattern) {
-        return asdate(timestamp, pattern, Lang.get());
-    }
-
-    public static String asdate(Long timestamp, String pattern, String lang) {
-        return new SimpleDateFormat(pattern, Lang.getLocaleOrDefault(lang)).format(new Date(timestamp));
-    }
-
-    public static String asdate(Long timestamp, String pattern, String lang, String timezone) {
-        return format(new Date(timestamp), pattern, lang, timezone);
-    }
-
     public static RawData nl2br(RawData data) {
         return new RawData(data.toString().replace("\n", "<br/>"));
     }
@@ -247,11 +194,11 @@ public class JavaExtensions {
         return new RawData(HTML.htmlEscape(data.toString()).replace("\n", "<br/>"));
     }
 
-    public static String urlEncode(String entity) {
+    public static String urlEncode(Http.Response response, String entity) {
         try {
             String encoding = play.Play.defaultWebEncoding;
-            if (Http.Response.current() != null) {
-                encoding = Http.Response.current().encoding;
+            if (response != null) {
+                encoding = response.encoding;
             }
             return URLEncoder.encode(entity, encoding);
         } catch (UnsupportedEncodingException e) {
@@ -271,16 +218,6 @@ public class JavaExtensions {
             return bytes / 1048576L + "MB";
         }
         return bytes / 1073741824L + "GB";
-    }
-
-    public static String formatCurrency(Number number, String currencyCode) {
-        Currency currency = Currency.getInstance(currencyCode);
-        NumberFormat numberFormat = NumberFormat.getCurrencyInstance(Lang.getLocale());
-        numberFormat.setCurrency(currency);
-        numberFormat.setMaximumFractionDigits(currency.getDefaultFractionDigits());
-        String s = numberFormat.format(number);
-        s = s.replace(currencyCode, I18N.getCurrencySymbol(currencyCode));
-        return s;
     }
 
     public static String formatCurrency(Number number, Locale locale) {

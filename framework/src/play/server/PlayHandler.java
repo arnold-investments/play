@@ -121,7 +121,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 response.onWriteChunk(result -> writeChunk(request, response, ctx, nettyRequest, result));
 
                 // Raw invocation
-                boolean raw = Play.pluginCollection.rawInvocation(request, response);
+                boolean raw = Play.pluginCollection.rawInvocation(context);
                 if (raw) {
                     copyResponse(ctx, request, response, nettyRequest);
                 } else {
@@ -256,18 +256,18 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 return;
             }
 
-            // Check the exceeded size before re rendering so we can render the
+            // Check the exceeded size before re-rendering so we can render the
             // error if the size is exceeded
-            saveExceededSizeError(nettyRequest, context.getRequest(), context.getResponse());
+            saveExceededSizeError(context, nettyRequest);
             ActionInvoker.invoke(context);
         }
 
         @Override
-        public void onSuccess() throws Exception {
-            super.onSuccess();
+        public void onSuccess(Context context) throws Exception {
+            super.onSuccess(context);
 
-            Http.Request request = context.getRequest();
-            Http.Response response = context.getResponse();
+            Http.Request request = this.context.getRequest();
+            Http.Response response = this.context.getResponse();
 
             if (response.chunked) {
                 closeChunked(request, response, ctx, nettyRequest);
@@ -280,7 +280,8 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         }
     }
 
-    void saveExceededSizeError(HttpRequest nettyRequest, Request request, Response response) {
+    void saveExceededSizeError(Context context, HttpRequest nettyRequest) {
+	    Request request = context.getRequest();
 
         String warning = nettyRequest.headers().get(HttpHeaders.Names.WARNING);
         String length = nettyRequest.headers().get(HttpHeaders.Names.CONTENT_LENGTH);
@@ -303,7 +304,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 } catch (Exception e) {
                     size = length + " bytes";
                 }
-                error.append(Messages.get(warning, size));
+                error.append(Messages.get(context, warning, size));
                 error.append("\u0001");
                 error.append(size);
                 error.append("\u0000");
@@ -458,7 +459,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                         writeFuture.addListener(ChannelFutureListener.CLOSE);
                     }
                 } else {
-                    FileService.serve(file, nettyRequest, nettyResponse, ctx, request, response, ctx.getChannel());
+                    FileService.serve(file, nettyRequest, nettyResponse, ctx, context, ctx.getChannel());
                 }
             } catch (Exception e) {
                 throw e;
@@ -686,9 +687,9 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         if (format == null) {
             format = "txt";
         }
-        nettyResponse.headers().set(CONTENT_TYPE, (MimeTypes.getContentType("404." + format, "text/plain")));
+        nettyResponse.headers().set(CONTENT_TYPE, (MimeTypes.getContentType(context, "404." + format, "text/plain")));
 
-        String errorHtml = TemplateLoader.load("errors/404." + format).render(binding);
+        String errorHtml = TemplateLoader.load("errors/404." + format).render(context, binding);
         try {
             byte[] bytes = errorHtml.getBytes(context.getResponse().encoding);
             ChannelBuffer buf = ChannelBuffers.copiedBuffer(bytes);
@@ -778,9 +779,9 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 format = "txt";
             }
 
-            nettyResponse.headers().set("Content-Type", (MimeTypes.getContentType("500." + format, "text/plain")));
+            nettyResponse.headers().set("Content-Type", (MimeTypes.getContentType(context, "500." + format, "text/plain")));
             try {
-                String errorHtml = TemplateLoader.load("errors/500." + format).render(binding);
+                String errorHtml = TemplateLoader.load("errors/500." + format).render(context, binding);
 
                 byte[] bytes = errorHtml.getBytes(encoding);
                 ChannelBuffer buf = ChannelBuffers.copiedBuffer(bytes);
@@ -868,8 +869,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                             writeFuture.addListener(ChannelFutureListener.CLOSE);
                         }
                     } else {
-                        FileService.serve(localFile, nettyRequest, nettyResponse, ctx, request, response,
-                                e.getChannel());
+                        FileService.serve(localFile, nettyRequest, nettyResponse, ctx, context, e.getChannel());
                     }
                 }
 
@@ -1205,17 +1205,17 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         }
 
         @Override
-        public void onException(Throwable e) {
+        public void onException(Context context, Throwable e) {
             Logger.error(e, "Internal Server Error in WebSocket (closing the socket) for request %s",
                     context.getRequest().method + " " + context.getRequest().url);
             ctx.getChannel().close();
-            super.onException(e);
+            super.onException(context, e);
         }
 
         @Override
-        public void onSuccess() throws Exception {
+        public void onSuccess(Context context) throws Exception {
             context.getOutbound().close();
-            super.onSuccess();
+            super.onSuccess(context);
         }
     }
 }

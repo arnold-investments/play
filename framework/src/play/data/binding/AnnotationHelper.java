@@ -11,6 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 import play.data.binding.types.DateBinder;
 import play.i18n.Lang;
 import play.libs.I18N;
+import play.mvc.Context;
 import play.test.Fixtures;
 
 public class AnnotationHelper {
@@ -26,7 +27,7 @@ public class AnnotationHelper {
      * @throws ParseException
      *             if problem occurred during parsing the date
      */
-    public static Date getDateAs(Annotation[] annotations, String value) throws ParseException {
+    public static Date getDateAs(Context context, Annotation[] annotations, String value) throws ParseException {
         // Look up for the BindAs annotation
         if (annotations == null) {
             return null;
@@ -34,7 +35,7 @@ public class AnnotationHelper {
         for (Annotation annotation : annotations) {
             if (annotation.annotationType().equals(As.class)) {
                 As as = (As) annotation;
-                Locale locale = Lang.getLocale();
+                Locale locale = Lang.getLocale(context);
                 String format = as.value()[0];
                 // According to Binder.java line 328 : Fixtures can use (iso) dates as default
                 if (format != null && format.equals(Fixtures.PROFILE_NAME)) {
@@ -42,7 +43,7 @@ public class AnnotationHelper {
                     locale = null;
                 } else if (!StringUtils.isEmpty(format)) {
                     // This can be comma separated
-                    Tuple tuple = getLocale(as.lang());
+                    Tuple tuple = getLocale(context, as.lang());
                     if (tuple != null) {
                         // Avoid NPE and get the last value if not specified
                         format = as.value()[tuple.index < as.value().length ? tuple.index : as.value().length - 1];
@@ -50,7 +51,7 @@ public class AnnotationHelper {
                     }
                 }
                 if (StringUtils.isEmpty(format)) {
-                    format = I18N.getDateFormat();
+                    format = I18N.getDateFormat(context);
                 }
                 SimpleDateFormat sdf = locale != null ? new SimpleDateFormat(format, locale) : new SimpleDateFormat(format);
                 sdf.setLenient(false);
@@ -60,15 +61,15 @@ public class AnnotationHelper {
         return null;
     }
 
-    public static Tuple getLocale(String[] langs) {
+    public static Tuple getLocale(Context context, String[] langs) {
         int i = 0;
         for (String l : langs) {
             String[] commaSeparatedLang = l.split(",");
             for (String lang : commaSeparatedLang) {
-                if (Lang.get().equals(lang) || "*".equals(lang)) {
+                if (Lang.get(context).equals(lang) || "*".equals(lang)) {
                     Locale locale = null;
                     if ("*".equals(lang)) {
-                        locale = Lang.getLocale();
+                        locale = Lang.getLocale(context);
                     }
                     if (locale == null) {
                         locale = Lang.getLocale(lang);

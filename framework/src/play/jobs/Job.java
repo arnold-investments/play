@@ -96,7 +96,7 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
      *
      * @return the job completion
      */
-    public Promise<V> afterRequest() {
+    public Promise<V> afterRequest(Http.Request request) {
         InvocationContext current = Invoker.InvocationContext.current();
         if (current == null || !Http.invocationType.equals(current.getInvocationType())) {
             return now();
@@ -104,7 +104,7 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
 
         Promise<V> smartFuture = new Promise<>();
         Callable<V> callable = getJobCallingCallable(smartFuture);
-        JobsPlugin.addAfterRequestAction(callable);
+        JobsPlugin.addAfterRequestAction(request, callable);
         return smartFuture;
     }
 
@@ -172,11 +172,11 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
 
     // Customize Invocation
     @Override
-    public void onException(Throwable e) {
+    public void onException(Context context, Throwable e) {
         wasError = true;
         lastException = e;
         try {
-            super.onException(e);
+            super.onException(context, e);
         } catch (Throwable ex) {
             Logger.error(ex, "Error during job execution (%s)", this);
             throw new UnexpectedException(unwrap(e));
@@ -209,7 +209,7 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
         Monitor monitor = null;
         try {
             if (init()) {
-                before();
+                before(context);
                 V result = null;
 
                 try {
@@ -242,23 +242,23 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
                     }
                     throw e;
                 }
-                after();
+                after(context);
                 return result;
             }
         } catch (Throwable e) {
-            onException(e);
+            onException(context, e);
         } finally {
             if (monitor != null) {
                 monitor.stop();
             }
-            _finally();
+            _finally(context);
         }
         return null;
     }
 
     @Override
-    public void _finally() {
-        super._finally();
+    public void _finally(Context context) {
+        super._finally(context);
         if (executor == JobsPlugin.executor) {
             JobsPlugin.scheduleForCRON(this);
         }

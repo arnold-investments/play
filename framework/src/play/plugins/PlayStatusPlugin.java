@@ -12,9 +12,9 @@ import play.Logger;
 import play.Play;
 import play.Play.Mode;
 import play.PlayPlugin;
+import play.mvc.Context;
+import play.mvc.Http;
 import play.mvc.Http.Header;
-import play.mvc.Http.Request;
-import play.mvc.Http.Response;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -72,7 +72,10 @@ public class PlayStatusPlugin extends PlayPlugin {
      * you would be required to start play with a -DstatusKey=yourkey
      */
     @Override
-    public boolean rawInvocation(Request request, Response response) throws Exception {
+    public boolean rawInvocation(Context context) throws Exception {
+	    Http.Request request = context.getRequest();
+	    Http.Response response = context.getResponse();
+
         if (Play.mode == Mode.DEV && request.path.equals("/@kill")) {
             System.out.println("@KILLED");
             if (Play.standalonePlayServer) {
@@ -103,7 +106,7 @@ public class PlayStatusPlugin extends PlayPlugin {
             }
             return true;
         }
-        return super.rawInvocation(request, response);
+        return super.rawInvocation(context);
     }
 
     /**

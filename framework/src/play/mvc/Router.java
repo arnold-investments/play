@@ -263,9 +263,9 @@ public class Router {
     static void parse(VirtualFile routeFile, String prefix) {
         String fileAbsolutePath = routeFile.getRealFile().getAbsolutePath();
         String content = Play.usePrecompiled ? "" : routeFile.contentAsString();
-        if (Play.usePrecompiled || content.indexOf("${") > -1 || content.indexOf("#{") > -1 || content.indexOf("%{") > -1) {
+        if (Play.usePrecompiled || content.contains("${") || content.contains("#{") || content.contains("%{")) {
             // Mutable map needs to be passed in.
-            content = TemplateLoader.load(routeFile).render(new HashMap<String, Object>(16));
+            content = TemplateLoader.load(routeFile).render(new Context(null, null), new HashMap<String, Object>(16));
         }
         parse(content, prefix, fileAbsolutePath);
     }

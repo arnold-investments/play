@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 
 import play.Play;
 import play.data.binding.Binder;
+import play.mvc.Context;
 
 /**
  * I18n Helper
@@ -38,6 +39,12 @@ public class Messages {
 
     private static final Pattern recursive = Pattern.compile("&\\{(.*?)\\}");
 
+    private final Context context;
+
+    public Messages(Context context) {
+        this.context = context;
+    }
+
     /**
      * Given a message code, translate it using current locale. If there is no message in the current locale for the
      * given key, the key is returned.
@@ -48,8 +55,12 @@ public class Messages {
      *            optional message format arguments
      * @return translated message
      */
-    public static String get(Object key, Object... args) {
-        return getMessage(Lang.get(), key, args);
+    public static String get(Context context, Object key, Object... args) {
+        return getMessage(context, Lang.get(context), key, args);
+    }
+
+    public String get(Object key, Object... args) {
+        return getMessage(context, Lang.get(context), key, args);
     }
 
     /**
@@ -88,7 +99,7 @@ public class Messages {
         return result;
     }
 
-    public static String getMessage(String locale, Object key, Object... args) {
+    public static String getMessage(Context context, String locale, Object key, Object... args) {
         // Check if there is a plugin that handles translation
         String message = Play.pluginCollection.getMessage(locale, key, args);
         if (message != null) {
@@ -114,20 +125,16 @@ public class Messages {
             value = key.toString();
         }
         Locale l = Lang.getLocaleOrDefault(locale);
-        return formatString(l, value, args);
+        return formatString(context, l, value, args);
     }
 
-    public static String formatString(String value, Object... args) {
-        return formatString(Lang.getLocale(), value, args);
-    }
-
-    public static String formatString(Locale locale, String value, Object... args) {
-        String message = String.format(locale, value, coolStuff(value, args));
+    public static String formatString(Context context, Locale locale, String value, Object... args) {
+        String message = String.format(locale, value, coolStuff(context, value, args));
 
         Matcher matcher = recursive.matcher(message);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            matcher.appendReplacement(sb, get(matcher.group(1)));
+            matcher.appendReplacement(sb, get(context, matcher.group(1)));
         }
         matcher.appendTail(sb);
         return sb.toString();
@@ -136,7 +143,7 @@ public class Messages {
     static final Pattern formatterPattern = Pattern.compile("%((\\d+)\\$)?([-#+ 0,(]+)?(\\d+)?([.]\\d+)?([bBhHsScCdoxXeEfgGaAtT])");
 
     @SuppressWarnings("unchecked")
-    static Object[] coolStuff(String pattern, Object[] args) {
+    static Object[] coolStuff(Context context, String pattern, Object[] args) {
         // when invoked with a null argument we get a null args instead of an
         // array with a null value.
 
@@ -174,7 +181,7 @@ public class Messages {
                 try {
                     // TODO: I think we need to type of direct bind -> primitive
                     // and object binder
-                    result[i] = Binder.directBind(null, args[i] + "", conversions[i], null);
+                    result[i] = Binder.directBind(context, null, args[i] + "", conversions[i], null);
                 } catch (Exception e) {
                     // Ignore
                     result[i] = null;

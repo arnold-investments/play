@@ -14,10 +14,10 @@ import static play.mvc.Scope.Session.TS_KEY;
 public class CookieSessionStore implements SessionStore {
 
     @Override
-    public Session restore() {
+    public Session restore(Context context) {
         try {
             Session session = new Session();
-            Http.Cookie cookie = Http.Request.current().cookies.get(COOKIE_PREFIX + "_SESSION");
+            Http.Cookie cookie = context.getRequest().cookies.get(COOKIE_PREFIX + "_SESSION");
             int duration = Time.parseDuration(COOKIE_EXPIRE);
             long expiration = (duration * 1000l);
 
@@ -57,13 +57,15 @@ public class CookieSessionStore implements SessionStore {
 
             return session;
         } catch (Exception e) {
-            throw new UnexpectedException("Corrupted HTTP session from " + Http.Request.current().remoteAddress, e);
+            throw new UnexpectedException("Corrupted HTTP session from " + context.getRequest().remoteAddress, e);
         }
     }
 
     @Override
-    public void save(Session session) {
-        if (Http.Response.current() == null) {
+    public void save(Context context) {
+	    Session session = context.getSession();
+
+        if (context.getResponse() == null) {
             // Some request like WebSocket don't have any response
             return;
         }
@@ -74,8 +76,8 @@ public class CookieSessionStore implements SessionStore {
         }
         if (session.isEmpty()) {
             // The session is empty: delete the cookie
-            if (Http.Request.current().cookies.containsKey(COOKIE_PREFIX + "_SESSION") || !SESSION_SEND_ONLY_IF_CHANGED) {
-                Http.Response.current().setCookie(COOKIE_PREFIX + "_SESSION", "", null, "/", 0, COOKIE_SECURE, SESSION_HTTPONLY);
+            if (context.getRequest().cookies.containsKey(COOKIE_PREFIX + "_SESSION") || !SESSION_SEND_ONLY_IF_CHANGED) {
+                context.getResponse().setCookie(COOKIE_PREFIX + "_SESSION", "", null, "/", 0, COOKIE_SECURE, SESSION_HTTPONLY);
             }
             return;
         }
@@ -83,10 +85,10 @@ public class CookieSessionStore implements SessionStore {
             String sessionData = CookieDataCodec.encode(session.data);
             String sign = Crypto.sign(sessionData, Play.secretKey.getBytes());
             if (COOKIE_EXPIRE == null) {
-                Http.Response.current().setCookie(COOKIE_PREFIX + "_SESSION", sign + "-" + sessionData, null, "/", null, COOKIE_SECURE,
+                context.getResponse().setCookie(COOKIE_PREFIX + "_SESSION", sign + "-" + sessionData, null, "/", null, COOKIE_SECURE,
                         SESSION_HTTPONLY);
             } else {
-                Http.Response.current().setCookie(COOKIE_PREFIX + "_SESSION", sign + "-" + sessionData, null, "/",
+                context.getResponse().setCookie(COOKIE_PREFIX + "_SESSION", sign + "-" + sessionData, null, "/",
                         Time.parseDuration(COOKIE_EXPIRE), COOKIE_SECURE, SESSION_HTTPONLY);
             }
         } catch (Exception e) {

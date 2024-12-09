@@ -50,6 +50,7 @@ import play.exceptions.DatabaseException;
 import play.exceptions.UnexpectedException;
 import play.exceptions.YAMLException;
 import play.libs.IO;
+import play.mvc.Context;
 import play.templates.TemplateLoader;
 import play.vfs.VirtualFile;
 
@@ -199,7 +200,7 @@ public class Fixtures {
      * @param name
      *            Name of a YAML file somewhere in the classpath (or conf/)
      * @param loadAsTemplate
-     *            indicate if the file must interpreted as a Template
+     *            indicate if the file must be interpreted as a Template
      */
     public static void loadModels(boolean loadAsTemplate, String name) {
         VirtualFile yamlFile = null;
@@ -219,9 +220,11 @@ public class Fixtures {
                 throw new RuntimeException("Cannot load fixture " + name + ", the file was not found");
             }
 
+            Context context = new Context(null, null);
+
             String renderedYaml = null;
             if (loadAsTemplate) {
-                renderedYaml = TemplateLoader.load(yamlFile).render();
+                renderedYaml = TemplateLoader.load(yamlFile).render(context);
             } else {
                 renderedYaml = yamlFile.contentAsString();
             }
@@ -232,6 +235,7 @@ public class Fixtures {
                 Annotation[] annotations = Fixtures.class.getAnnotations();
                 @SuppressWarnings("unchecked")
                 LinkedHashMap<Object, Map<?, ?>> objects = (LinkedHashMap<Object, Map<?, ?>>) o;
+
                 for (Object key : objects.keySet()) {
                     Matcher matcher = keyPattern.matcher(key.toString().trim());
                     if (matcher.matches()) {
@@ -264,7 +268,7 @@ public class Fixtures {
                         // have an embedded class we should ignore it.
                         if (Model.class.isAssignableFrom(cType)) {
 
-                            Model model = (Model) Binder.bind(rootParamNode, "object", cType, cType, annotations);
+                            Model model = (Model) Binder.bind(context, rootParamNode, "object", cType, cType, annotations);
                             for (Field f : model.getClass().getFields()) {
                                 if (!Modifier.isStatic(f.getModifiers())) {
 	                                if (f.getType().isAssignableFrom(Map.class)) {
@@ -283,7 +287,7 @@ public class Fixtures {
                                 tType = tType.getSuperclass();
                             }
                         } else {
-                            idCache.put(cType.getName() + "-" + id, Binder.bind(rootParamNode, "object", cType, cType, annotations));
+                            idCache.put(cType.getName() + "-" + id, Binder.bind(context, rootParamNode, "object", cType, cType, annotations));
                         }
                     }
                 }

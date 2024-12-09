@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -541,34 +540,34 @@ public class PluginCollection {
         return false;
     }
 
-    public void invocationFinally() {
+    public void invocationFinally(Context context) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.invocationFinally();
+            plugin.invocationFinally(context);
         }
     }
 
-    public void beforeInvocation() {
+    public void beforeInvocation(Context context) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.beforeInvocation();
+            plugin.beforeInvocation(context);
         }
     }
 
-    public void afterInvocation() {
+    public void afterInvocation(Context context) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.afterInvocation();
+            plugin.afterInvocation(context);
         }
     }
 
-    public void onInvocationSuccess() {
+    public void onInvocationSuccess(Context context) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.onInvocationSuccess();
+            plugin.onInvocationSuccess(context);
         }
     }
 
-    public void onInvocationException(Throwable e) {
+    public void onInvocationException(Context context, Throwable e) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
             try {
-                plugin.onInvocationException(e);
+                plugin.onInvocationException(context, e);
             } catch (Throwable ex) {
                 Logger.error(ex, "Failed to handle invocation exception by plugin %s", plugin.getClass().getName());
             }
@@ -722,15 +721,15 @@ public class PluginCollection {
         return null;
     }
 
-    public void beforeActionInvocation(Method actionMethod) {
+    public void beforeActionInvocation(Context context) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.beforeActionInvocation(actionMethod);
+            plugin.beforeActionInvocation(context);
         }
     }
 
-    public void onActionInvocationResult(Result result) {
+    public void onActionInvocationResult(Context context, Result result) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.onActionInvocationResult(result);
+            plugin.onActionInvocationResult(context, result);
         }
     }
 
@@ -764,9 +763,9 @@ public class PluginCollection {
         }
     }
 
-    public boolean rawInvocation(Http.Request request, Http.Response response) throws Exception {
+    public boolean rawInvocation(Context context) throws Exception {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            if (plugin.rawInvocation(request, response)) {
+            if (plugin.rawInvocation(context)) {
                 return true;
             }
         }

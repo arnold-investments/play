@@ -10,6 +10,7 @@ import java.util.regex.Pattern;
 import play.Logger;
 import play.Play;
 import play.PlayPlugin;
+import play.mvc.Context;
 import play.mvc.Http;
 
 /**
@@ -64,8 +65,8 @@ public class MimeTypes {
      *            the file name
      * @return the content-type deduced from the file extension.
      */
-    public static String getContentType(String filename) {
-        return getContentType(filename, "application/octet-stream");
+    public static String getContentType(Context context, String filename) {
+        return getContentType(context, filename, "application/octet-stream");
     }
 
     /**
@@ -78,13 +79,13 @@ public class MimeTypes {
      *            the default content-type to return when no matching content-type is found
      * @return the content-type deduced from the file extension.
      */
-    public static String getContentType(String filename, String defaultContentType) {
+    public static String getContentType(Context context, String filename, String defaultContentType) {
         String contentType = getMimeType(filename, null);
         if (contentType == null) {
             contentType = defaultContentType;
         }
         if (contentType != null && contentType.startsWith("text/")) {
-            return contentType + "; charset=" + getCurrentCharset();
+            return contentType + "; charset=" + getCurrentCharset(context);
         }
         return contentType;
     }
@@ -106,9 +107,9 @@ public class MimeTypes {
         }
     }
 
-    private static String getCurrentCharset() {
+    private static String getCurrentCharset(Context context) {
         String charset;
-        Http.Response currentResponse = Http.Response.current();
+        Http.Response currentResponse = context != null ? context.getResponse() : null;
 
         if (currentResponse != null) {
             charset = currentResponse.encoding;

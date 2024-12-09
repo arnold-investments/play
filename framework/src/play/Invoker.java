@@ -210,9 +210,9 @@ public class Invoker {
          * Needs this method to do stuff *before* init() is executed. The different Invocation-implementations does a
          * lot of stuff in init() and they might do it before calling super.init()
          */
-        protected void preInit() {
+        protected void preInit(Context context) {
             // clear language for this request - we're resolving it later when it is needed
-            Lang.clear();
+            Lang.clear(context);
         }
 
         /**
@@ -238,16 +238,16 @@ public class Invoker {
         /**
          * Things to do before an Invocation
          */
-        public void before() {
+        public void before(Context context) {
             Thread.currentThread().setContextClassLoader(Play.classloader);
-            Play.pluginCollection.beforeInvocation();
+            Play.pluginCollection.beforeInvocation(context);
         }
 
         /**
          * Things to do after an Invocation. (if the Invocation code has not thrown any exception)
          */
-        public void after() {
-            Play.pluginCollection.afterInvocation();
+        public void after(Context context) {
+            Play.pluginCollection.afterInvocation(context);
         }
 
         /**
@@ -256,18 +256,17 @@ public class Invoker {
          * @throws java.lang.Exception
          *             Thrown if Invoker encounters any problems
          */
-        public void onSuccess() throws Exception {
-            Play.pluginCollection.onInvocationSuccess();
+        public void onSuccess(Context context) throws Exception {
+            Play.pluginCollection.onInvocationSuccess(context);
         }
 
         /**
          * Things to do if the Invocation code thrown an exception
-         * 
-         * @param e
-         *            The exception
+         *
+         * @param e       The exception
          */
-        public void onException(Throwable e) {
-            Play.pluginCollection.onInvocationException(e);
+        public void onException(Context context, Throwable e) {
+            Play.pluginCollection.onInvocationException(context, e);
             if (e instanceof PlayException) {
                 throw (PlayException) e;
             }
@@ -291,8 +290,8 @@ public class Invoker {
         /**
          * Things to do in all cases after the invocation.
          */
-        public void _finally() {
-            Play.pluginCollection.invocationFinally();
+        public void _finally(Context context) {
+            Play.pluginCollection.invocationFinally(context);
             InvocationContext.current.remove();
         }
 
@@ -313,9 +312,9 @@ public class Invoker {
             }
 
             try {
-                preInit();
+                preInit(context);
                 if (init()) {
-                    before();
+                    before(context);
                     final AtomicBoolean executed = new AtomicBoolean(false);
                     this.withinFilter(() -> {
                         executed.set(true);
@@ -326,28 +325,28 @@ public class Invoker {
                     if (!executed.get()) {
                         execute();
                     }
-                    after();
-                    onSuccess();
+                    after(context);
+                    onSuccess(context);
                 }
             } catch (AsyncRequest e) {
-                after();
+                after(context);
                 e.task.onRedeem(p -> {
                     try {
-                        onSuccess();
+                        onSuccess(context);
                     } catch (Throwable ex) {
-                        onException(ex);
+                        onException(context, ex);
                     } finally {
-                        _finally();
+                        _finally(context);
                     }
                 });
 
             } catch (Suspend e) {
                 suspend(e);
-                after();
+                after(context);
             } catch (Throwable e) {
-                onException(e);
+                onException(context, e);
             } finally {
-                _finally();
+                _finally(context);
             }
         }
     }

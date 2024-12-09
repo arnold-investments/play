@@ -7,7 +7,6 @@ import play.data.binding.ParamNode;
 import play.data.binding.RootParamNode;
 import play.data.parsing.DataParser;
 import play.data.parsing.DataParsers;
-import play.data.validation.Validation;
 import play.exceptions.UnexpectedException;
 import play.i18n.Messages;
 import play.inject.Injector;
@@ -112,14 +111,6 @@ public class Scope {
             data.put(key, value);
         }
 
-        public void error(String value, Object... args) {
-            put("error", Messages.get(value, args));
-        }
-
-        public void success(String value, Object... args) {
-            put("success", Messages.get(value, args));
-        }
-
         public void discard(String key) {
             out.remove(key);
         }
@@ -169,8 +160,8 @@ public class Scope {
         static final String ID_KEY = "___ID";
         static final String TS_KEY = "___TS";
 
-        public static Session restore() {
-            return sessionStore.restore();
+        public static Session restore(Context context) {
+            return sessionStore.restore(context);
         }
 
         final Map<String, String> data = new HashMap<>(); // ThreadLocal access
@@ -199,8 +190,8 @@ public class Scope {
             changed = true;
         }
 
-        void save() {
-            sessionStore.save(this);
+        void save(Context context) {
+            sessionStore.save(context);
         }
 
         public void put(String key, String value) {
@@ -306,7 +297,7 @@ public class Scope {
                     if (contentType != null) {
                         DataParser dataParser = DataParsers.forContentType(contentType);
                         if (dataParser != null) {
-                            _mergeWith(dataParser.parse(request.body));
+                            _mergeWith(dataParser.parse(request, request.body));
                         }
                     }
                     try {
@@ -366,7 +357,7 @@ public class Scope {
                 return (T) Binder.bind(context, getRootParamNode(), key, type, type, null);
             } catch (RuntimeException e) {
                 Logger.error(e, "Failed to get %s of type %s", key, type);
-                context.getValidation().addError(key, "validation.invalid");
+                context.getValidation().addError(context, key, "validation.invalid");
                 return null;
             }
         }
@@ -377,7 +368,7 @@ public class Scope {
                 return (T) Binder.directBind(context, annotations, get(key), type, null);
             } catch (Exception e) {
                 Logger.error(e, "Failed to get %s of type %s", key, type);
-                context.getValidation().addError(key, "validation.invalid");
+                context.getValidation().addError(context, key, "validation.invalid");
                 return null;
             }
         }

@@ -1,9 +1,8 @@
 package play.mvc.results;
 
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 import play.mvc.Http;
-import play.mvc.Http.Request;
-import play.mvc.Http.Response;
 
 /**
  * 302 Redirect
@@ -17,10 +16,10 @@ public class RedirectToStatic extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
+    public void apply(Context context) {
         try {
-            response.status = Http.StatusCode.FOUND;
-            response.setHeader("Location", file);
+            context.getResponse().status = Http.StatusCode.FOUND;
+            context.getResponse().setHeader("Location", file);
         } catch (Exception e) {
             throw new UnexpectedException(e);
         }

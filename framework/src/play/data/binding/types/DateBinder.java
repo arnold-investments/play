@@ -23,13 +23,13 @@ public class DateBinder implements TypeBinder<Date> {
             return null;
         }
 
-        Date date = AnnotationHelper.getDateAs(annotations, value);
+        Date date = AnnotationHelper.getDateAs(context, annotations, value);
         if (date != null) {
             return date;
         }
 
         try {
-            SimpleDateFormat sdf = new SimpleDateFormat(I18N.getDateFormat());
+            SimpleDateFormat sdf = new SimpleDateFormat(I18N.getDateFormat(context));
             sdf.setLenient(false);
             return sdf.parse(value);
         } catch (ParseException e) {

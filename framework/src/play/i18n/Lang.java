@@ -1,21 +1,22 @@
 package play.i18n;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import play.Logger;
 import play.Play;
+import play.mvc.Context;
 import play.mvc.Http;
-import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 import play.mvc.Scope;
-
-import java.util.*;
 
 /**
  * Language support
  */
 public class Lang {
-
-    static final ThreadLocal<String> current = new ThreadLocal<>();
-
     private static final Map<String, Locale> cache = new HashMap<>();
     
     /**
@@ -23,20 +24,20 @@ public class Lang {
      *
      * @return The current language (fr, ja, it ...) or null
      */
-    public static String get() {
-        String locale = current.get();
+    public static String get(Context context) {
+        String locale = context.getLocale();
         if (locale == null) {
             // don't have current locale for this request - must try to resolve it
-            Http.Request currentRequest = Http.Request.current();
+            Http.Request currentRequest = context.getRequest();
             if (currentRequest != null) {
                 // we have a current request - lets try to resolve language from it
-                resolveFrom(currentRequest);
+                resolveFrom(context);
             } else {
                 // don't have current request - just use default
-                setDefaultLocale();
+                setDefaultLocale(context);
             }
             // get the picked locale
-            locale = current.get();
+            locale = context.getLocale();
         }
         return locale;
     }
@@ -48,9 +49,9 @@ public class Lang {
      * @param locale (fr, ja, it ...)
      * @return false if the language is not supported by the application
      */
-    public static boolean set(String locale) {
-        if (locale.equals("") || Play.langs.contains(locale)) {
-            current.set(locale);
+    public static boolean set(Context context, String locale) {
+        if (locale.isEmpty() || Play.langs.contains(locale)) {
+            context.setLocale(locale);
             return true;
         } else {
             Logger.warn("Locale %s is not defined in your application.conf", locale);
@@ -62,8 +63,8 @@ public class Lang {
      * Clears the current language - This wil trigger resolving language from request
      * if not manually set.
      */
-    public static void clear() {
-        current.remove();
+    public static void clear(Context context) {
+        context.setLocale(null);
     }
 
 
@@ -72,14 +73,14 @@ public class Lang {
      *
      * @param locale (e.g. "fr", "ja", "it", "en_ca", "fr_be", ...)
      */
-    public static void change(String locale) {
+    public static void change(Context context, String locale) {
         String closestLocale = findClosestMatch(Collections.singleton(locale));
         if (closestLocale == null) {
             // Give up
             return;
         }
-        if (set(closestLocale)) {
-            Response response = Response.current();
+        if (set(context, closestLocale)) {
+            Response response = context.getResponse();
             if (response != null) {
                 // We have a current response in scope - set the language-cookie to store the selected language for the next requests
                 response.setCookie(Play.configuration.getProperty("application.lang.cookie", "PLAY_LANG"), locale, null, "/", null, Scope.COOKIE_SECURE);
@@ -141,40 +142,38 @@ public class Lang {
      * <li>if <b>Accept-Language</b> header is set, use it only if the Play! application allows it.<br/>supported language may be defined in application configuration, eg : <em>play.langs=fr,en,de)</em></li>
      * <li>otherwise, server's locale language is assumed
      * </ol>
-     *
-     * @param request current request
      */
-    private static void resolveFrom(Request request) {
+    private static void resolveFrom(Context context) {
         // Check a cookie
         String cn = Play.configuration.getProperty("application.lang.cookie", "PLAY_LANG");
-        if (request.cookies.containsKey(cn)) {
-            String localeFromCookie = request.cookies.get(cn).value;
+        if (context.getRequest().cookies.containsKey(cn)) {
+            String localeFromCookie = context.getRequest().cookies.get(cn).value;
             if (localeFromCookie != null && localeFromCookie.trim().length() > 0) {
-                if (set(localeFromCookie)) {
+                if (set(context, localeFromCookie)) {
                     // we're using locale from cookie
                     return;
                 }
                 // could not use locale from cookie - clear the locale-cookie
-                Response.current().setCookie(cn, "", null, "/", null, Scope.COOKIE_SECURE);
+                context.getResponse().setCookie(cn, "", null, "/", null, Scope.COOKIE_SECURE);
 
             }
 
         }
-        String closestLocaleMatch = findClosestMatch(request.acceptLanguage());
+        String closestLocaleMatch = findClosestMatch(context.getRequest().acceptLanguage());
         if (closestLocaleMatch != null) {
-            set(closestLocaleMatch);
+            set(context, closestLocaleMatch);
         } else {
             // Did not find anything - use default
-            setDefaultLocale();
+            setDefaultLocale(context);
         }
 
     }
 
-    public static void setDefaultLocale() {
+    public static void setDefaultLocale(Context context) {
         if (Play.langs.isEmpty()) {
-            set("");
+            set(context, "");
         } else {
-            set(Play.langs.get(0));
+            set(context, Play.langs.getFirst());
         }
     }
 
@@ -182,8 +181,8 @@ public class Lang {
      * @return the default locale if the Locale cannot be found otherwise the locale
      * associated to the current Lang.
      */
-    public static Locale getLocale() {
-        return getLocaleOrDefault(get());
+    public static Locale getLocale(Context context) {
+        return getLocaleOrDefault(get(context));
     }
 
     public static Locale getLocaleOrDefault(String localeStr) {

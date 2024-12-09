@@ -4,6 +4,6 @@ package play.mvc;
  * Implementations of session storage mechanisms.
  */
 public interface SessionStore {
-    void save(Scope.Session session);
-    Scope.Session restore();
+    void save(Context context);
+    Scope.Session restore(Context context);
 }

@@ -56,6 +56,7 @@ import play.i18n.Lang;
 import play.i18n.Messages;
 import play.libs.Codec;
 import play.mvc.ActionInvoker;
+import play.mvc.Context;
 import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Router;
@@ -233,35 +234,35 @@ public class GroovyTemplate extends BaseTemplate {
     }
 
     @Override
-    public String render(Map<String, Object> args) {
+    public String render(Context context, Map<String, Object> args) {
         try {
-            return super.render(args);
+            return super.render(context, args);
         } finally {
             currentTemplate.remove();
         }
     }
 
-    protected Binding setUpBindingVariables(Map<String, Object> args) {
+    protected Binding setUpBindingVariables(Context context, Map<String, Object> args) {
         Binding binding = new Binding(args);
         binding.setVariable("play", new Play());
-        binding.setVariable("messages", new Messages());
-        binding.setVariable("lang", Lang.get());
+        binding.setVariable("messages", new Messages(context));
+        binding.setVariable("lang", Lang.get(context));
         return binding;
     }
 
     @Override
-    protected String internalRender(Map<String, Object> args) {
+    protected String internalRender(Context context, Map<String, Object> args) {
         compile();
 
-        Binding binding = this.setUpBindingVariables(args);
+        Binding binding = this.setUpBindingVariables(context, args);
 
         // If current response-object is present, add _response_encoding'
-        Http.Response currentResponse = Http.Response.current();
+        Http.Response currentResponse = context.getResponse();
         if (currentResponse != null) {
             binding.setVariable("_response_encoding", currentResponse.encoding);
         }
         StringWriter writer = null;
-        Boolean applyLayouts = false;
+        boolean applyLayouts = false;
 
         // must check if this is the first template being rendered..
         // If this template is called from inside another template,
@@ -270,7 +271,7 @@ public class GroovyTemplate extends BaseTemplate {
         if (!args.containsKey("out")) {
             // This is the first template being rendered.
             // We have to set up the PrintWriter that this (and all sub-templates) are going
-            // to write the output to..
+            // to write the output to...
             applyLayouts = true;
             layout.remove();
             writer = new StringWriter();
@@ -282,7 +283,7 @@ public class GroovyTemplate extends BaseTemplate {
             TagContext.init();
         }
         ExecutableTemplate t = (ExecutableTemplate) InvokerHelper.createScript(compiledTemplate, binding);
-        t.init(this);
+        t.init(context, this);
         Monitor monitor = null;
         try {
             monitor = MonitorFactory.start(name);
@@ -322,7 +323,7 @@ public class GroovyTemplate extends BaseTemplate {
             Map<String, Object> layoutArgs = new HashMap<>(args);
             layoutArgs.remove("out");
             layoutArgs.put("_isLayout", true);
-            String layoutR = layout.get().internalRender(layoutArgs);
+            String layoutR = layout.get().internalRender(context, layoutArgs);
 
             // Must replace '____%LAYOUT%____' inside the string layoutR with the content from writer..
             String whatToFind = "____%LAYOUT%____";
@@ -389,7 +390,14 @@ public class GroovyTemplate extends BaseTemplate {
         public GroovyTemplate template;
         private String extension;
 
-        public void init(GroovyTemplate t) {
+        private Context context;
+
+        public Context getContext() {
+            return context;
+        }
+
+        public void init(Context context, GroovyTemplate t) {
+            this.context = context;
             template = t;
             int index = template.name.lastIndexOf('.');
             if (index > 0) {
@@ -447,7 +455,7 @@ public class GroovyTemplate extends BaseTemplate {
             }
             args.put("_body", body);
             try {
-                tagTemplate.internalRender(args);
+                tagTemplate.internalRender(context, args);
             } catch (TagInternalException e) {
                 throw new TemplateExecutionException(template, fromLine, e.getMessage(), template.cleanStackTrace(e));
             } catch (TemplateNotFoundException e) {
@@ -499,14 +507,14 @@ public class GroovyTemplate extends BaseTemplate {
                         + "have you forgotten quotes around the message-key?");
             }
             if (val.length == 1) {
-                return Messages.get(val[0]);
+                return Messages.get(context, val[0]);
             } else {
                 // extract args from val
                 Object[] args = new Object[val.length - 1];
                 for (int i = 1; i < val.length; i++) {
                     args[i - 1] = val[i];
                 }
-                return Messages.get(val[0], args);
+                return Messages.get(context, val[0], args);
             }
         }
 
@@ -519,7 +527,7 @@ public class GroovyTemplate extends BaseTemplate {
         }
 
         private String __reverseWithCheck(String action, boolean absolute) {
-            return Router.reverseWithCheck(action, Play.getVirtualFile(action), absolute);
+            return Router.reverseWithCheck(context.getRequest(), action, Play.getVirtualFile(action), absolute);
         }
 
         public String __safe(Object val, String stringValue) {
@@ -567,7 +575,7 @@ public class GroovyTemplate extends BaseTemplate {
             public Object invokeMethod(String name, Object param) {
                 try {
                     if (controller == null) {
-                        controller = Request.current().controller;
+                        controller = template.getContext().getRequest().controller;
                     }
                     String action = controller + "." + name;
                     if (action.endsWith(".call")) {
@@ -587,23 +595,23 @@ public class GroovyTemplate extends BaseTemplate {
                                 }
                                 for (int i = 0; i < ((Object[]) param).length; i++) {
                                     if (((Object[]) param)[i] instanceof Router.ActionDefinition && ((Object[]) param)[i] != null) {
-                                        Unbinder.unBind(r, ((Object[]) param)[i].toString(), i < names.length ? names[i] : "",
+                                        Unbinder.unBind(template.getContext(), r, ((Object[]) param)[i].toString(), i < names.length ? names[i] : "",
                                                 actionMethod.getAnnotations());
                                     } else if (isSimpleParam(actionMethod.getParameterTypes()[i])) {
                                         if (((Object[]) param)[i] != null) {
-                                            Unbinder.unBind(r, ((Object[]) param)[i].toString(), i < names.length ? names[i] : "",
+                                            Unbinder.unBind(template.getContext(), r, ((Object[]) param)[i].toString(), i < names.length ? names[i] : "",
                                                     actionMethod.getAnnotations());
                                         }
                                     } else {
-                                        Unbinder.unBind(r, ((Object[]) param)[i], i < names.length ? names[i] : "",
+                                        Unbinder.unBind(template.getContext(), r, ((Object[]) param)[i], i < names.length ? names[i] : "",
                                                 actionMethod.getAnnotations());
                                     }
                                 }
                             }
                         }
-                        Router.ActionDefinition def = Router.reverse(action, r);
+                        Router.ActionDefinition def = Router.reverse(template.getContext(), action, r);
                         if (absolute) {
-                            def.absolute();
+                            def.absolute(template.getContext().getRequest());
                         }
                         if (template.template.name.endsWith(".xml")) {
                             def.url = def.url.replace("&", "&amp;");

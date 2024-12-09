@@ -10,7 +10,7 @@ import play.mvc.Http;
 public class TextParser extends DataParser {
 
     @Override
-    public Map<String, String[]> parse(InputStream is) {
+    public Map<String, String[]> parse(Http.Request request, InputStream is) {
         try {
             Map<String, String[]> params = new HashMap<>();
             ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -19,7 +19,7 @@ public class TextParser extends DataParser {
                 os.write(b);
             }
             byte[] data = os.toByteArray();
-            params.put("body", new String[] {new String(data, Http.Request.current().encoding)});
+            params.put("body", new String[] {new String(data, request.encoding)});
             return params;
         } catch (Exception e) {
             throw new UnexpectedException(e);

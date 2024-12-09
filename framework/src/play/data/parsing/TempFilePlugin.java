@@ -8,6 +8,7 @@ import org.apache.commons.io.FileUtils;
 
 import play.Play;
 import play.PlayPlugin;
+import play.mvc.Context;
 
 /**
  *  Creates temporary folders for file parsing, and deletes
@@ -43,7 +44,7 @@ public class TempFilePlugin extends PlayPlugin {
     }
 
     @Override
-    public void invocationFinally() {
+    public void invocationFinally(Context context) {
         File file = tempFolder.get();
         if (file != null) {
             tempFolder.remove();

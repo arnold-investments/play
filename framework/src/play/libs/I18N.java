@@ -4,6 +4,7 @@ import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import play.Play;
 import play.i18n.Lang;
+import play.mvc.Context;
 
 /**
  * I18N utils
@@ -135,8 +136,8 @@ public class I18N {
         return symbols.getOrDefault(currency, currency);
     }
 
-    public static String getDateFormat() {
-        String localizedDateFormat = Play.configuration.getProperty("date.format." + Lang.get());
+    public static String getDateFormat(Context context) {
+        String localizedDateFormat = Play.configuration.getProperty("date.format." + Lang.get(context));
         if (!StringUtils.isEmpty(localizedDateFormat)) {
             return localizedDateFormat;
         }

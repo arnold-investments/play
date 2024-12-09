@@ -19,16 +19,16 @@ public class CalendarBinder implements TypeBinder<Calendar> {
 
     @Override
     public Calendar bind(Context context, String name, Annotation[] annotations, String value, Class<?> actualClass, Type genericType) throws Exception {
-        if (value == null || value.trim().length() == 0) {
+        if (value == null || value.trim().isEmpty()) {
             return null;
         }
-        Calendar cal = Calendar.getInstance(Lang.getLocale());
+        Calendar cal = Calendar.getInstance(Lang.getLocale(context));
 
-        Date date = AnnotationHelper.getDateAs(annotations, value);
+        Date date = AnnotationHelper.getDateAs(context, annotations, value);
         if (date != null) {
             cal.setTime(date);
         } else {
-            SimpleDateFormat sdf = new SimpleDateFormat(I18N.getDateFormat());
+            SimpleDateFormat sdf = new SimpleDateFormat(I18N.getDateFormat(context));
             sdf.setLenient(false);
             cal.setTime(sdf.parse(value));
         }

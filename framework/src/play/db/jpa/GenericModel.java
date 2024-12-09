@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-
 import javax.persistence.ManyToMany;
 import javax.persistence.ManyToOne;
 import javax.persistence.MappedSuperclass;
@@ -25,15 +24,12 @@ import javax.persistence.PostLoad;
 import javax.persistence.PostPersist;
 import javax.persistence.PostUpdate;
 import javax.persistence.Query;
-
 import org.apache.commons.lang3.StringUtils;
-
 import play.Play;
 import play.data.binding.BeanWrapper;
 import play.data.binding.Binder;
 import play.data.binding.BindingAnnotations;
 import play.data.binding.ParamNode;
-import play.data.validation.Validation;
 import play.exceptions.UnexpectedException;
 import play.mvc.Context;
 import play.mvc.Scope.Params;
@@ -224,7 +220,7 @@ public class GenericModel extends JPABase {
                                         l.add(q.getSingleResult());
 
                                     } catch (NoResultException e) {
-                                        context.getValidation().addError(name + "." + field.getName(), "validation.notFound", _id);
+                                        context.getValidation().addError(context, name + "." + field.getName(), "validation.notFound", _id);
                                     }
                                 }
                                 bw.set(field.getName(), o, l);
@@ -243,12 +239,12 @@ public class GenericModel extends JPABase {
                                     paramNode.removeChild(field.getName(), removedNodesList);
                                     bw.set(field.getName(), o, to);
                                 } catch (NoResultException e) {
-                                    context.getValidation().addError(fieldParamNode.getOriginalKey(), "validation.notFound", ids[0]);
+                                    context.getValidation().addError(context, fieldParamNode.getOriginalKey(), "validation.notFound", ids[0]);
                                     // Remove only the key to prevent us from finding it again later
-                                    // This how the old impl does it..
+                                    // This how the old impl does it...
                                     fieldParamNode.removeChild(keyName, removedNodesList);
-                                    if (fieldParamNode.getAllChildren().size() == 0) {
-                                        // remove the whole node..
+                                    if (fieldParamNode.getAllChildren().isEmpty()) {
+                                        // remove the whole node...
                                         paramNode.removeChild(field.getName(), removedNodesList);
                                     }
 

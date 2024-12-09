@@ -303,7 +303,7 @@ public class JPAPlugin extends PlayPlugin {
     } 
    
     @Override
-    public void afterInvocation() {
+    public void afterInvocation(Context context) {
        // In case the current Action got suspended
        for(String emfKey: JPA.emfs.keySet()) {
            JPA.closeTx(emfKey);

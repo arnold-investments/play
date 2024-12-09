@@ -133,7 +133,7 @@ public class DBPlugin extends PlayPlugin {
     }
     
     @Override
-    public void invocationFinally() {
+    public void invocationFinally(play.mvc.Context context) {
         DB.closeAll();
     }
 

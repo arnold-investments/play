@@ -11,6 +11,7 @@ import play.data.binding.ParamNode;
 import play.data.binding.RootParamNode;
 import play.db.Configuration;
 import play.db.jpa.GenericModel.JPAQuery;
+import play.mvc.Context;
 import play.mvc.Scope.Params;
 
 public class JPQL {
@@ -136,16 +137,16 @@ public class JPQL {
        return findOneBy(JPA.DEFAULT, entity, query, params);
     }
 
-    public JPABase create(String entity, String name, Params params) throws Exception {
-        return create(JPA.DEFAULT, entity, name, params);
+    public JPABase create(Context context, String entity, String name, Params params) throws Exception {
+        return create(context, JPA.DEFAULT, entity, name, params);
     }
 
-    public JPABase create(String dbName, String entity, String name, Params params) throws Exception {
+    public JPABase create(Context context, String dbName, String entity, String name, Params params) throws Exception {
         Object o = Play.classloader.loadClass(entity).getDeclaredConstructor().newInstance();
 
         RootParamNode rootParamNode = ParamNode.convert(params.all());
 
-        return ((GenericModel) o).edit(rootParamNode, name);
+        return ((GenericModel) o).edit(context, rootParamNode, name);
     }
 
     public String createFindByQuery(String dbName, String entityName, String entityClass, String query, Object... params) {

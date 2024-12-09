@@ -16,6 +16,7 @@ import org.apache.commons.io.IOUtils;
 
 import play.exceptions.UnexpectedException;
 import play.libs.MimeTypes;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 
@@ -141,9 +142,11 @@ public class RenderBinary extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
+    public void apply(Context context) {
+	    Response response = context.getResponse();
+
         if (name != null) {
-            setContentTypeIfNotSet(response, MimeTypes.getContentType(name));
+            setContentTypeIfNotSet(response, MimeTypes.getContentType(context, name));
         }
         if (contentType != null) {
             response.contentType = contentType;

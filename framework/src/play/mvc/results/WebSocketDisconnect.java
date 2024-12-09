@@ -1,13 +1,11 @@
 package play.mvc.results;
 
-import play.mvc.Http.Inbound;
-import play.mvc.Http.Outbound;
-import play.mvc.Http.Request;
+import play.mvc.Context;
 
 public class WebSocketDisconnect extends WebSocketResult {
 
     @Override
-    public void apply(Request request, Inbound inbound, Outbound outbound) {
+    public void apply(Context context) {
     }
 
 }

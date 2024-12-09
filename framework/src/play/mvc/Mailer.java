@@ -240,19 +240,22 @@ public class Mailer {
     }
 
     private static class VirtualFileDataSource implements DataSource {
+        private final Context context;
         private final VirtualFile virtualFile;
 
-        public VirtualFileDataSource(VirtualFile virtualFile) {
+        public VirtualFileDataSource(Context context, VirtualFile virtualFile) {
+            this.context = context;
             this.virtualFile = virtualFile;
         }
 
-        public VirtualFileDataSource(String relativePath) {
+        public VirtualFileDataSource(Context context, String relativePath) {
+            this.context = context;
             this.virtualFile = VirtualFile.fromRelativePath(relativePath);
         }
 
         @Override
         public String getContentType() {
-            return MimeTypes.getContentType(this.virtualFile.getName());
+            return MimeTypes.getContentType(context, this.virtualFile.getName());
         }
 
         @Override
@@ -287,11 +290,11 @@ public class Mailer {
     }
 
     @Deprecated
-    public static String getEmbedddedSrc(String urlString, String name) {
-        return getEmbeddedSrc(urlString, name);
+    public static String getEmbedddedSrc(Context context, String urlString, String name) {
+        return getEmbeddedSrc(context, urlString, name);
     }
 
-    public static String getEmbeddedSrc(String urlString, String name) {
+    public static String getEmbeddedSrc(Context context, String urlString, String name) {
         Map<String, Object> map = infos.get();
         if (map == null) {
             throw new UnexpectedException("Mailer not instrumented ?");
@@ -318,9 +321,9 @@ public class Mailer {
                 throw new UnexpectedException("name cannot be null or empty");
             }
 
-            dataSource = url.getProtocol().equals("file") ? new VirtualFileDataSource(url.getFile()) : new URLDataSource(url);
+            dataSource = url.getProtocol().equals("file") ? new VirtualFileDataSource(context, url.getFile()) : new URLDataSource(url);
         } else {
-            dataSource = new VirtualFileDataSource(img);
+            dataSource = new VirtualFileDataSource(context, img);
         }
 
         Map<String, InlineImage> inlineEmbeds = (Map<String, InlineImage>) map.get("inlineEmbeds");
@@ -403,7 +406,7 @@ public class Mailer {
         infos.set(map);
     }
 
-    public static Future<Boolean> send(String template, Map<String, Object> templateBindings) {
+    public static Future<Boolean> send(Context context, String template, Map<String, Object> templateBindings) {
         try {
             Map<String, Object> map = infos.get();
             if (map == null) {
@@ -453,7 +456,7 @@ public class Mailer {
             String bodyText = "";
             try {
                 Template templateHtml = TemplateLoader.load(templateName + ".html");
-                bodyHtml = templateHtml.render(templateHtmlBinding);
+                bodyHtml = templateHtml.render(context, templateHtmlBinding);
             } catch (TemplateNotFoundException e) {
                 if (contentType != null && !contentType.startsWith("text/plain")) {
                     throw e;
@@ -462,7 +465,7 @@ public class Mailer {
 
             try {
                 Template templateText = TemplateLoader.load(templateName + ".txt");
-                bodyText = templateText.render(templateTextBinding);
+                bodyText = templateText.render(context, templateTextBinding);
             } catch (TemplateNotFoundException e) {
                 if (bodyHtml == null && (contentType == null || contentType.startsWith("text/plain"))) {
                     throw e;
@@ -610,9 +613,9 @@ public class Mailer {
         }
     }
 
-    public static boolean sendAndWait(String template, Map<String, Object> templateBindings) {
+    public static boolean sendAndWait(Context context, String template, Map<String, Object> templateBindings) {
         try {
-            Future<Boolean> result = send(template, templateBindings);
+            Future<Boolean> result = send(context, template, templateBindings);
             return result.get();
         } catch (InterruptedException | ExecutionException e) {
             Logger.error(e, "Error while waiting Mail.send result");

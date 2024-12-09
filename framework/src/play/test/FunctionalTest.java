@@ -21,7 +21,6 @@ import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 import play.mvc.Router.ActionDefinition;
-import play.mvc.Scope.RenderArgs;
 import play.mvc.results.RenderStatic;
 
 import java.io.ByteArrayInputStream;
@@ -335,18 +334,18 @@ public abstract class FunctionalTest extends BaseTest {
             }
 
             @Override
-            public void onSuccess() throws Exception {
+            public void onSuccess(Context context) throws Exception {
                 try {
-                    super.onSuccess();
+                    super.onSuccess(context);
                 } finally {
                     onActionCompleted();
                 }
             }
 
             @Override
-            public void onException(Throwable e) {
+            public void onException(Context context, Throwable e) {
                 try {
-                    super.onException(e);
+                    super.onException(context, e);
                 } finally {
                     onActionCompleted();
                 }

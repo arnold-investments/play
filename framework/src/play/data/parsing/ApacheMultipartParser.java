@@ -39,6 +39,7 @@ import play.data.FileUpload;
 import play.data.MemoryUpload;
 import play.data.Upload;
 import play.exceptions.UnexpectedException;
+import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.utils.HTTP;
 
@@ -509,11 +510,11 @@ public class ApacheMultipartParser extends DataParser {
     }
 
     @Override
-    public Map<String, String[]> parse(InputStream body) {
+    public Map<String, String[]> parse(Http.Request request, InputStream body) {
         Map<String, String[]> result = new HashMap<>();
         try {
-            FileItemIteratorImpl iter = new FileItemIteratorImpl(body, Request.current().headers.get("content-type").value(),
-                    Request.current().encoding);
+            FileItemIteratorImpl iter = new FileItemIteratorImpl(body, request.headers.get("content-type").value(),
+                request.encoding);
             while (iter.hasNext()) {
                 FileItemStream item = iter.next();
                 FileItem fileItem = new AutoFileItem(item);
@@ -527,7 +528,7 @@ public class ApacheMultipartParser extends DataParser {
                     }
                     if (fileItem.isFormField()) {
                         // must resolve encoding
-                        String _encoding = Request.current().encoding; // this is our default
+                        String _encoding = request.encoding; // this is our default
                         String _contentType = fileItem.getContentType();
                         if (_contentType != null) {
                             HTTP.ContentTypeWithEncoding contentTypeEncoding = HTTP.parseContentType(_contentType);
@@ -539,7 +540,7 @@ public class ApacheMultipartParser extends DataParser {
                         putMapEntry(result, fileItem.getFieldName(), fileItem.getString(_encoding));
                     } else {
                         @SuppressWarnings("unchecked")
-                        List<Upload> uploads = (List<Upload>) Request.current().args.computeIfAbsent("__UPLOADS", k -> new ArrayList<>());
+                        List<Upload> uploads = (List<Upload>) request.args.computeIfAbsent("__UPLOADS", k -> new ArrayList<>());
                         try {
                             uploads.add(new FileUpload(fileItem));
                         } catch (Exception e) {

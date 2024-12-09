@@ -664,7 +664,7 @@ public class Controller implements PlayController, ControllerSupport {
                 if (isDefault) {
                     newArgs.put(names[i], new Default(args[i]));
                 } else {
-                    Unbinder.unBind(newArgs, args[i], names[i], annotations);
+                    Unbinder.unBind(context, newArgs, args[i], names[i], annotations);
                 }
 
             }
@@ -744,7 +744,7 @@ public class Controller implements PlayController, ControllerSupport {
         templateBinding.put("errors", context.getValidation().errors());
         try {
             Template template = TemplateLoader.load(template(context.getRequest(), templateName));
-            throw new RenderTemplate(template, templateBinding.data);
+            throw new RenderTemplate(context, template, templateBinding.data);
         } catch (TemplateNotFoundException ex) {
             if (ex.isSourceAvailable()) {
                 throw ex;

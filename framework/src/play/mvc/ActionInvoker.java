@@ -97,14 +97,14 @@ public class ActionInvoker {
 
             wrapInvokeAction(context, ctx, action);
         } catch (Result result) {
-            Play.pluginCollection.onActionInvocationResult(result);
+            Play.pluginCollection.onActionInvocationResult(context, result);
 
             // OK there is a result to apply
             // Save session & flash scope now
-            context.getSession().save();
-            context.getFlash().save();
+            context.getSession().save(context);
+            context.getFlash().save(context);
 
-            result.apply(context.getRequest(), context.getResponse());
+            result.apply(context);
 
             Play.pluginCollection.afterActionInvocation();
 
@@ -209,7 +209,7 @@ public class ActionInvoker {
 
         if (invokeActionResult.actionResult == null) {
             ControllerInstrumentation.initActionCall();
-            inferResult(invokeControllerMethod(context, context.getActionMethod()));
+            inferResult(context, invokeControllerMethod(context, context.getActionMethod()));
         }
     }
 
@@ -226,10 +226,10 @@ public class ActionInvoker {
         // add parameters from the URI query string
         String encoding = context.getRequest().encoding;
         context.getParams()
-            ._mergeWith(UrlEncodedParser.parseQueryString(new ByteArrayInputStream(context.getRequest().querystring.getBytes(encoding))));
+            ._mergeWith(UrlEncodedParser.parseQueryString(context.getRequest(), new ByteArrayInputStream(context.getRequest().querystring.getBytes(encoding))));
 
         ControllerInstrumentation.stopActionCall();
-        Play.pluginCollection.beforeActionInvocation(context.getActionMethod());
+        Play.pluginCollection.beforeActionInvocation(context);
 
         // Monitoring
         return MonitorFactory.start(context.getRequest().action + "()");
@@ -248,7 +248,7 @@ public class ActionInvoker {
             for (Class exception : exceptions) {
                 if (exception.isInstance(args[0])) {
                     mCatch.setAccessible(true);
-                    inferResult(invokeControllerMethod(context, mCatch, args));
+                    inferResult(context, invokeControllerMethod(context, mCatch, args));
                     break;
                 }
             }
@@ -318,7 +318,7 @@ public class ActionInvoker {
             }
             if (!skip) {
                 before.setAccessible(true);
-                inferResult(invokeControllerMethod(context, before));
+                inferResult(context, invokeControllerMethod(context, before));
             }
         }
     }
@@ -354,7 +354,7 @@ public class ActionInvoker {
             }
             if (!skip) {
                 after.setAccessible(true);
-                inferResult(invokeControllerMethod(context, after));
+                inferResult(context, invokeControllerMethod(context, after));
             }
         }
     }
@@ -428,7 +428,7 @@ public class ActionInvoker {
     }
 
     @SuppressWarnings("unchecked")
-    public static void inferResult(Object o) {
+    public static void inferResult(Context context, Object o) {
         // Return type inference
         if (o != null) {
 
@@ -446,7 +446,7 @@ public class ActionInvoker {
                 Controller.renderBinary((File) o);
             }
             if (o instanceof Map) {
-                Controller.renderTemplate((Map<String, Object>) o);
+                Controller.renderTemplate(context, (Map<String, Object>) o);
             }
 
             Controller.renderHtml(o);
@@ -587,7 +587,7 @@ public class ActionInvoker {
                     + Utils.join(method.getParameterAnnotations()[i], " ") + "]");
 
             RootParamNode root = ParamNode.convert(params);
-            rArgs[i] = Binder.bind(root, paramsNames[i], method.getParameterTypes()[i], method.getGenericParameterTypes()[i],
+            rArgs[i] = Binder.bind(context, root, paramsNames[i], method.getParameterTypes()[i], method.getGenericParameterTypes()[i],
                     method.getParameterAnnotations()[i], new Binder.MethodAndParamInfo(o, method, i + 1));
         }
 

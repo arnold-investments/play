@@ -3,13 +3,11 @@ package play.db;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -21,16 +19,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
-
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.regex.Pattern;
-import org.apache.commons.lang3.StringUtils;
-
 import play.Logger;
 import play.Play;
 import play.PlayPlugin;
@@ -42,10 +32,8 @@ import play.db.evolutions.EvolutionState;
 import play.db.evolutions.exceptions.InconsistentDatabase;
 import play.db.evolutions.exceptions.InvalidDatabaseRevision;
 import play.exceptions.UnexpectedException;
-import play.jobs.JobsPlugin;
-import play.libs.IO;
-import play.mvc.Http.Request;
-import play.mvc.Http.Response;
+import play.mvc.Context;
+import play.mvc.Http;
 import play.mvc.results.Redirect;
 import play.vfs.VirtualFile;
 
@@ -336,7 +324,8 @@ public class Evolutions extends PlayPlugin {
     }
 
     @Override
-    public boolean rawInvocation(Request request, Response response) throws Exception {
+    public boolean rawInvocation(Context context) throws Exception {
+	    Http.Request request = context.getRequest();
 
         // Mark an evolution as resolved
         if (Play.mode.isDev() && request.method.equals("POST") && request.url.matches("^/@evolutions/force/[a-zA-Z0-9]+/[0-9]+$")) {
@@ -347,7 +336,7 @@ public class Evolutions extends PlayPlugin {
             int revision = Integer.parseInt(request.url.substring(request.url.lastIndexOf('/') + 1));
 
             resolve(dbName, moduleKey, revision);
-            new Redirect("/").apply(request, response);
+            new Redirect("/").apply(context);
             return true;
         }
 
@@ -357,14 +346,14 @@ public class Evolutions extends PlayPlugin {
             for (Entry<String, VirtualFile> moduleRoot : modulesWithEvolutions.entrySet()) {
                 applyScript(true, moduleRoot.getKey(), moduleRoot.getValue());
             }
-            new Redirect("/").apply(request, response);
+            new Redirect("/").apply(context);
             return true;
         }
-        return super.rawInvocation(request, response);
+        return super.rawInvocation(context);
     }
 
     @Override
-    public void beforeInvocation() {
+    public void beforeInvocation(Context context) {
         if (isDisabled() || Play.mode.isProd()) {
             return;
         }

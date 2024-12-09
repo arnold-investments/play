@@ -9,6 +9,7 @@ import play.inject.Injector;
 import play.libs.CronExpression;
 import play.libs.Expression;
 import play.libs.Time;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.utils.Java;
 import play.utils.PThreadFactory;
@@ -257,12 +258,12 @@ public class JobsPlugin extends PlayPlugin {
     }
 
     @Override
-    public void beforeInvocation() {
+    public void beforeInvocation(Context context) {
         afterInvocationActions.set(new LinkedList<Callable<?>>());
     }
 
     @Override
-    public void afterInvocation() {
+    public void afterInvocation(Context context) {
         List<Callable<?>> currentActions = afterInvocationActions.get();
         afterInvocationActions.remove();
         if (currentActions != null) {
@@ -273,8 +274,8 @@ public class JobsPlugin extends PlayPlugin {
     }
 
     // default visibility, because we want to use this only from Job.java
-    static void addAfterRequestAction(Callable<?> c) {
-        if (Request.current() == null) {
+    static void addAfterRequestAction(Request request, Callable<?> c) {
+        if (request == null) {
             throw new IllegalStateException("After request actions can be added only from threads that serve requests!");
         }
         afterInvocationActions.get().add(c);

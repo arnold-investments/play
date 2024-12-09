@@ -1,5 +1,6 @@
 package play.mvc.results;
 
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 
@@ -13,8 +14,8 @@ public class Status extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
-        response.status = code;
+    public void apply(Context context) {
+        context.getResponse().status = code;
     }
 
     public int getCode() {

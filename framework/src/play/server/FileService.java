@@ -11,6 +11,7 @@ import org.jboss.netty.handler.stream.ChunkedInput;
 import play.Logger;
 import play.exceptions.UnexpectedException;
 import play.libs.MimeTypes;
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 
@@ -28,8 +29,10 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 
 public class FileService  {
 
-    public static void serve(File localFile, HttpRequest nettyRequest, HttpResponse nettyResponse, ChannelHandlerContext ctx, Request request, Response response, Channel channel) throws FileNotFoundException {
+    public static void serve(File localFile, HttpRequest nettyRequest, HttpResponse nettyResponse, ChannelHandlerContext ctx, Context context, Channel channel) throws FileNotFoundException {
+        Response response = context.getResponse();
         RandomAccessFile raf = new RandomAccessFile(localFile, "r");
+
         try {
             long fileLength = raf.length();
             
@@ -37,7 +40,7 @@ public class FileService  {
             
             if(Logger.isTraceEnabled()) {
                 Logger.trace("keep alive %s", String.valueOf(isKeepAlive));
-                Logger.trace("content type %s", (response.contentType != null ? response.contentType : MimeTypes.getContentType(localFile.getName(), "text/plain")));
+                Logger.trace("content type %s", (response.contentType != null ? response.contentType : MimeTypes.getContentType(context, localFile.getName(), "text/plain")));
             }
             
             if (!nettyResponse.getStatus().equals(HttpResponseStatus.NOT_MODIFIED)) {
@@ -51,7 +54,7 @@ public class FileService  {
             if (response.contentType != null) {
                 nettyResponse.headers().set(CONTENT_TYPE, response.contentType);
             } else {
-                nettyResponse.headers().set(CONTENT_TYPE, (MimeTypes.getContentType(localFile.getName(), "text/plain")));
+                nettyResponse.headers().set(CONTENT_TYPE, MimeTypes.getContentType(context, localFile.getName(), "text/plain"));
             }
 
             nettyResponse.headers().set(HttpHeaders.Names.ACCEPT_RANGES, HttpHeaders.Values.BYTES);
@@ -61,7 +64,7 @@ public class FileService  {
 
             // Write the content.
             if (!nettyRequest.getMethod().equals(HttpMethod.HEAD)) {
-                ChunkedInput chunkedInput = getChunckedInput(raf, MimeTypes.getContentType(localFile.getName(), "text/plain"), channel, nettyRequest, nettyResponse);
+                ChunkedInput chunkedInput = getChunckedInput(raf, MimeTypes.getContentType(context, localFile.getName(), "text/plain"), channel, nettyRequest, nettyResponse);
                 if (channel.isOpen()) {
                     channel.write(nettyResponse);
                     writeFuture = channel.write(chunkedInput);

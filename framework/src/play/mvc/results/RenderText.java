@@ -23,7 +23,7 @@ public class RenderText extends Result {
             Http.Response response = context.getResponse();
 
             setContentTypeIfNotSet(response, "text/plain; charset=" + response.encoding);
-            response.out.write(text.getBytes(getEncoding()));
+            response.out.write(text.getBytes(getEncoding(context.getResponse())));
         } catch(Exception e) {
             throw new UnexpectedException(e);
         }

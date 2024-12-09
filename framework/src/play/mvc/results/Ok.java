@@ -1,6 +1,7 @@
 package play.mvc.results;
 
 
+import play.mvc.Context;
 import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
@@ -15,7 +16,7 @@ public class Ok extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
-        response.status = Http.StatusCode.OK;
+    public void apply(Context context) {
+        context.getResponse().status = Http.StatusCode.OK;
     }
 }

@@ -1,9 +1,5 @@
 package play.utils;
 
-import static java.util.Collections.addAll;
-import static java.util.Collections.sort;
-import static org.apache.commons.io.IOUtils.closeQuietly;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -21,7 +17,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.FutureTask;
-
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.bytecode.SourceFileAttribute;
@@ -31,7 +26,11 @@ import play.data.binding.Binder;
 import play.data.binding.ParamNode;
 import play.data.binding.RootParamNode;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 import play.mvc.With;
+
+import static java.util.Collections.addAll;
+import static org.apache.commons.io.IOUtils.closeQuietly;
 
 /**
  * Java utils
@@ -186,15 +185,15 @@ public class Java {
         return Java.invokeStaticOrParent(invokedClass, method, args);
     }
 
-    public static Object invokeStatic(Method method, Map<String, String[]> args) throws Exception {
-        return method.invoke(null, prepareArgs(method, args));
+    public static Object invokeStatic(Context context, Method method, Map<String, String[]> args) throws Exception {
+        return method.invoke(null, prepareArgs(context, method, args));
     }
 
     public static Object invokeStatic(Method method, Object[] args) throws Exception {
         return method.invoke(null, args);
     }
 
-    static Object[] prepareArgs(Method method, Map<String, String[]> args) throws Exception {
+    static Object[] prepareArgs(Context context, Method method, Map<String, String[]> args) throws Exception {
         String[] paramsNames = parameterNames(method);
         if (paramsNames == null && method.getParameterTypes().length > 0) {
             throw new UnexpectedException("Parameter names not found for method " + method);
@@ -204,7 +203,7 @@ public class Java {
 
         Object[] rArgs = new Object[method.getParameterTypes().length];
         for (int i = 0; i < method.getParameterTypes().length; i++) {
-            rArgs[i] = Binder.bind(rootParamNode, paramsNames[i], method.getParameterTypes()[i], method.getGenericParameterTypes()[i],
+            rArgs[i] = Binder.bind(context, rootParamNode, paramsNames[i], method.getParameterTypes()[i], method.getGenericParameterTypes()[i],
                     method.getParameterAnnotations()[i]);
         }
         return rArgs;

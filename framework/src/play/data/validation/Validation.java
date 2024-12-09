@@ -3,7 +3,6 @@ package play.data.validation;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -13,9 +12,10 @@ import java.util.regex.Pattern;
 import net.sf.oval.configuration.annotation.AbstractAnnotationCheck;
 import play.Play;
 import play.exceptions.UnexpectedException;
+import play.mvc.Context;
 
 public class Validation {
-
+    public final Map<Object, String> keys = new HashMap<>();
     final List<Error> errors = new ArrayList<>();
     boolean keep = false;
 
@@ -57,8 +57,8 @@ public class Validation {
      * @param message Message key
      * @param variables Message variables
      */
-    public void addError(String field, String message, String... variables) {
-        insertError(errors.size(), field, message,  variables);
+    public void addError(Context context, String field, String message, String... variables) {
+        insertError(context, errors.size(), field, message,  variables);
     }
     
     /**
@@ -68,10 +68,10 @@ public class Validation {
      * @param message Message key
      * @param variables Message variables
      */
-    public void insertError(int index, String field, String message, String... variables) {
+    public void insertError(Context context, int index, String field, String message, String... variables) {
         Error error = error(field);
         if (error == null || !error.message.equals(message)) {
-            errors.add(index, new Error(field, message, variables));
+            errors.add(index, new Error(context, field, message, variables));
         }
     }
     
@@ -172,9 +172,6 @@ public class Validation {
                         if (annotation.annotationType().getName().startsWith("play.data.validation")) {
                             Validator validator = new Validator(annotation);
                             validators.add(validator);
-                            if (annotation.annotationType().equals(Equals.class)) {
-                                validator.params.put("equalsTo", name + "." + ((Equals) annotation).value());
-                            }
                             if (annotation.annotationType().equals(InFuture.class)) {
                                 validator.params.put("reference", ((InFuture) annotation).value());
                             }
@@ -204,9 +201,6 @@ public class Validation {
                 if (annotation.annotationType().getName().startsWith("play.data.validation")) {
                     Validator validator = new Validator(annotation);
                     validators.add(validator);
-                    if (annotation.annotationType().equals(Equals.class)) {
-                        validator.params.put("equalsTo", name + "." + ((Equals) annotation).value());
-                    }
                     if (annotation.annotationType().equals(InFuture.class)) {
                         validator.params.put("reference", ((InFuture) annotation).value());
                     }
@@ -259,125 +253,120 @@ public class Validation {
         }
     }
 
-    public ValidationResult required(String key, Object o) {
+    public ValidationResult required(Context context, String key, Object o) {
         RequiredCheck check = new RequiredCheck();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult min(String key, Object o, double min) {
+    public ValidationResult min(Context context, String key, Object o, double min) {
         MinCheck check = new MinCheck();
         check.min = min;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult max(String key, Object o, double max) {
+    public ValidationResult max(Context context, String key, Object o, double max) {
         MaxCheck check = new MaxCheck();
         check.max = max;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult future(String key, Object o, Date reference) {
-        InFutureCheck check = new InFutureCheck();
+    public ValidationResult future(Context context, String key, Object o, Date reference) {
+        InFutureCheck check = new InFutureCheck(context);
         check.reference = reference;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult future(String key, Object o) {
-        InFutureCheck check = new InFutureCheck();
+    public ValidationResult future(Context context, String key, Object o) {
+        InFutureCheck check = new InFutureCheck(context);
         check.reference = new Date();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult past(String key, Object o, Date reference) {
-        InPastCheck check = new InPastCheck();
+    public ValidationResult past(Context context, String key, Object o, Date reference) {
+        InPastCheck check = new InPastCheck(context);
         check.reference = reference;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult past(String key, Object o) {
-        InPastCheck check = new InPastCheck();
+    public ValidationResult past(Context context, String key, Object o) {
+        InPastCheck check = new InPastCheck(context);
         check.reference = new Date();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult match(String key, Object o, String pattern) {
+    public ValidationResult match(Context context, String key, Object o, String pattern) {
         MatchCheck check = new MatchCheck();
         check.pattern = Pattern.compile(pattern);
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult email(String key, Object o) {
+    public ValidationResult email(Context context, String key, Object o) {
         EmailCheck check = new EmailCheck();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
-    public ValidationResult url(String key, Object o) {
+    public ValidationResult url(Context context, String key, Object o) {
         URLCheck check = new URLCheck();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult phone(String key, Object o) {
+    public ValidationResult phone(Context context, String key, Object o) {
         PhoneCheck check = new PhoneCheck();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult ipv4Address(String key, Object o) {
+    public ValidationResult ipv4Address(Context context, String key, Object o) {
         IPv4AddressCheck check = new IPv4AddressCheck();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult ipv6Address(String key, Object o) {
+    public ValidationResult ipv6Address(Context context, String key, Object o) {
         IPv6AddressCheck check = new IPv6AddressCheck();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult isTrue(String key, Object o) {
+    public ValidationResult isTrue(Context context, String key, Object o) {
         IsTrueCheck check = new IsTrueCheck();
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult equals(String key, Object o, String otherName, Object to) {
-        EqualsCheck check = new EqualsCheck();
-        check.otherKey = otherName;
-        check.otherValue = to;
-        return applyCheck(check, key, o);
-    }
-
-    public ValidationResult range(String key, Object o, double min, double max) {
+    public ValidationResult range(Context context, String key, Object o, double min, double max) {
         RangeCheck check = new RangeCheck();
         check.min = min;
         check.max = max;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult minSize(String key, Object o, int minSize) {
+    public ValidationResult minSize(Context context, String key, Object o, int minSize) {
         MinSizeCheck check = new MinSizeCheck();
         check.minSize = minSize;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult maxSize(String key, Object o, int maxSize) {
+    public ValidationResult maxSize(Context context, String key, Object o, int maxSize) {
         MaxSizeCheck check = new MaxSizeCheck();
         check.maxSize = maxSize;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    public ValidationResult valid(String key, Object o) {
-        ValidCheck check = new ValidCheck();
+    public ValidationResult valid(Context context, String key, Object o) {
+        ValidCheck check = new ValidCheck(context);
         check.key = key;
-        return applyCheck(check, key, o);
+        return applyCheck(context, check, key, o);
     }
 
-    ValidationResult applyCheck(AbstractAnnotationCheck<?> check, String key, Object o) {
+    ValidationResult applyCheck(Context context, AbstractAnnotationCheck<?> check, String key, Object o) {
         try {
             ValidationResult result = new ValidationResult();
             if (!check.isSatisfied(o, o, null, null)) {
-                Error error = new Error(key, check.getClass()
-                        .getDeclaredField("mes").get(null)
-                        + "",
-                        check.getMessageVariables() == null ? new String[0]
-                                : check.getMessageVariables().values()
-                                        .toArray(new String[0]),
-                        check.getSeverity());
+                Error error = new Error(
+                    context,
+                    key,
+                    check.getClass().getDeclaredField("mes").get(null) + "",
+                    check.getMessageVariables() == null
+                        ? new String[0]
+                        : check.getMessageVariables().values().toArray(new String[0]),
+                    check.getSeverity()
+                );
                 errors.add(error);
                 result.error = error;
                 result.ok = false;

@@ -20,14 +20,14 @@ public class RenderTemplate extends Result {
     private final Map<String, Object> arguments;
     private final long renderTime;
 
-    public RenderTemplate(Template template, Map<String, Object> arguments) {
+    public RenderTemplate(Context context, Template template, Map<String, Object> arguments) {
         if (arguments.containsKey("out")) {
             throw new RuntimeException("Arguments should not contain out");
         }
         this.name = template.name;
         this.arguments = arguments;
         long start = System.currentTimeMillis();
-        this.content = template.render(arguments);
+        this.content = template.render(context, arguments);
         this.renderTime = System.currentTimeMillis() - start;
     }
 
@@ -36,7 +36,7 @@ public class RenderTemplate extends Result {
         try {
             Http.Response response = context.getResponse();
 
-            String contentType = MimeTypes.getContentType(name, "text/plain");
+            String contentType = MimeTypes.getContentType(context, name, "text/plain");
             response.out.write(content.getBytes(getEncoding(response)));
             setContentTypeIfNotSet(response, contentType);
         } catch (Exception e) {

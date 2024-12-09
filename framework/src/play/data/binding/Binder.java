@@ -246,17 +246,17 @@ public abstract class Binder {
             return null; // give up
         } catch (NumberFormatException | ParseException e) {
             logBindingNormalFailure(paramNode, e);
-            addValidationError(context.getValidation(), paramNode);
+            addValidationError(context, paramNode);
         } catch (Exception e) {
             // TODO This is bad catch. I would like to remove it in next version.
             logBindingUnexpectedFailure(paramNode, e);
-            addValidationError(context.getValidation(), paramNode);
+            addValidationError(context, paramNode);
         }
         return MISSING;
     }
 
-    private static void addValidationError(Validation validation, ParamNode paramNode) {
-        validation.addError(paramNode.getOriginalKey(), "validation.invalid");
+    private static void addValidationError(Context context, ParamNode paramNode) {
+        context.getValidation().addError(context, paramNode.getOriginalKey(), "validation.invalid");
     }
 
     private static void logBindingUnexpectedFailure(ParamNode paramNode, Exception e) {
@@ -374,7 +374,7 @@ public abstract class Binder {
             internalBindBean(context, paramNode, bean, new BindingAnnotations());
         } catch (NumberFormatException e) {
             logBindingNormalFailure(paramNode, e);
-            addValidationError(context.getValidation(), paramNode);
+            addValidationError(context, paramNode);
         }
 
     }

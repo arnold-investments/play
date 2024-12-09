@@ -1,5 +1,6 @@
 package play.mvc.results;
 
+import play.mvc.Context;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 import play.vfs.VirtualFile;
@@ -14,7 +15,7 @@ public class RenderStatic extends Result {
     }
 
     @Override
-    public void apply(Request request, Response response) {
+    public void apply(Context context) {
     }
 
 }

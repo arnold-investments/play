@@ -2,6 +2,7 @@ package play.templates;
 
 import java.util.HashMap;
 import java.util.Map;
+import play.mvc.Context;
 
 public abstract class Template {
 
@@ -17,7 +18,7 @@ public abstract class Template {
      *            map containing data binding info
      * @return the result of the complete rendering
      */
-    public String render(Map<String, Object> args) {
+    public String render(Context context, Map<String, Object> args) {
         // starts the internal recursive rendering process with
         // a copy of the passed args-map. This is done
         // to prevent us from pollution the users map with
@@ -25,7 +26,7 @@ public abstract class Template {
         //
         // Since the original args is not polluted it can be used as input
         // to another rendering operation later
-        return internalRender(new HashMap<>(args));
+        return internalRender(context, new HashMap<>(args));
     }
 
     /**
@@ -36,10 +37,10 @@ public abstract class Template {
      *            List of arguments use in render
      * @return The template result as string
      */
-    protected abstract String internalRender(Map<String, Object> args);
+    protected abstract String internalRender(Context context, Map<String, Object> args);
 
-    public String render() {
-        return internalRender(new HashMap<String, Object>());
+    public String render(Context context) {
+        return internalRender(context, new HashMap<String, Object>());
     }
 
     public String getName() {

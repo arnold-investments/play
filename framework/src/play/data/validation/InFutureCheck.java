@@ -11,6 +11,7 @@ import java.util.Map;
 import net.sf.oval.Validator;
 import net.sf.oval.configuration.annotation.AbstractAnnotationCheck;
 import net.sf.oval.context.OValContext;
+import play.mvc.Context;
 import play.utils.Utils.AlternativeDateFormat;
 import play.exceptions.UnexpectedException;
 import play.libs.I18N;
@@ -21,6 +22,12 @@ public class InFutureCheck extends AbstractAnnotationCheck<InFuture> {
     static final String mes = "validation.future";
 
     Date reference;
+
+    private final Context context;
+
+    public InFutureCheck(Context context) {
+        this.context = context;
+    }
 
     @Override
     public void configure(InFuture future) {
@@ -76,7 +83,7 @@ public class InFutureCheck extends AbstractAnnotationCheck<InFuture> {
     @Override
     public Map<String, String> createMessageVariables() {
         Map<String, String> messageVariables = new HashMap<>();
-        messageVariables.put("reference", new SimpleDateFormat(I18N.getDateFormat()).format(reference));
+        messageVariables.put("reference", new SimpleDateFormat(I18N.getDateFormat(context)).format(reference));
         return messageVariables;
     }
    
