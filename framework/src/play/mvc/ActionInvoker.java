@@ -2,7 +2,16 @@ package play.mvc;
 
 import com.jamonapi.Monitor;
 import com.jamonapi.MonitorFactory;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import play.Invoker;
 import play.Logger;
@@ -26,16 +35,6 @@ import play.mvc.results.NotFound;
 import play.mvc.results.Result;
 import play.utils.Java;
 import play.utils.Utils;
-
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Invoke an action after an HTTP request.
@@ -431,25 +430,16 @@ public class ActionInvoker {
     public static void inferResult(Context context, Object o) {
         // Return type inference
         if (o != null) {
-
-            if (o instanceof NoResult) {
-                return;
-            }
-            if (o instanceof Result) {
-                // Of course
-                throw (Result) o;
-            }
-            if (o instanceof InputStream) {
-                Controller.renderBinary((InputStream) o);
-            }
-            if (o instanceof File) {
-                Controller.renderBinary((File) o);
-            }
-            if (o instanceof Map) {
-                Controller.renderTemplate(context, (Map<String, Object>) o);
-            }
-
-            Controller.renderHtml(o);
+	        switch (o) {
+		        case NoResult ignore -> {}
+		        case Result result ->
+			        // Of course
+			        throw result;
+		        case InputStream inputStream -> Controller.renderBinary(inputStream);
+                case File file -> Controller.renderBinary(file);
+                case Map<?, ?> map ->  Controller.renderTemplate(context, (Map<String, Object>) map);
+		        default -> Controller.renderHtml(o);
+	        }
         }
     }
 
@@ -461,27 +451,13 @@ public class ActionInvoker {
 	    Request request = context.getRequest();
 
         boolean isStatic = Modifier.isStatic(method.getModifiers());
-        String declaringClassName = method.getDeclaringClass().getName();
-        boolean isProbablyScala = declaringClassName.contains("$");
 
         if (!isStatic && request.controllerInstance == null) {
             request.controllerInstance = Injector.getBeanOfType(request.controllerClass);
+            request.controllerInstance.setContext(context);
         }
 
         Object[] args = forceArgs != null ? forceArgs : getActionMethodArgs(context, request.controllerInstance);
-
-        if (isProbablyScala) {
-            try {
-                Object scalaInstance = request.controllerClass.getDeclaredField("MODULE$").get(null);
-                if (declaringClassName.endsWith("$class")) {
-                    args[0] = scalaInstance; // Scala trait method
-                } else {
-                    request.controllerInstance = (PlayController) scalaInstance; // Scala object method
-                }
-            } catch (NoSuchFieldException e) {
-                // not Scala
-            }
-        }
 
         Object methodClassInstance = isStatic ? null :
             (method.getDeclaringClass().isAssignableFrom(request.controllerClass)) ? request.controllerInstance :
@@ -492,11 +468,7 @@ public class ActionInvoker {
 
     static Object invoke(Method method, Object instance, Object ... realArgs) throws Exception {
         try {
-//            if (isActionMethod(method)) {
-//                return invokeWithContinuation(method, instance, realArgs);
-//            } else {
-                return method.invoke(instance, realArgs);
-//            }
+            return method.invoke(instance, realArgs);
         } catch (InvocationTargetException ex) {
             Throwable originalThrowable = ex.getTargetException();
 
@@ -511,15 +483,6 @@ public class ActionInvoker {
             throw new JavaExecutionException(originalThrowable);
         }
     }
-
-    static final String C = "__continuation";
-    static final String A = "__callback";
-    static final String F = "__future";
-    static final String CONTINUATIONS_STORE_LOCAL_VARIABLE_NAMES = "__CONTINUATIONS_STORE_LOCAL_VARIABLE_NAMES";
-    static final String CONTINUATIONS_STORE_RENDER_ARGS = "__CONTINUATIONS_STORE_RENDER_ARGS";
-    static final String CONTINUATIONS_STORE_PARAMS = "__CONTINUATIONS_STORE_PARAMS";
-    public static final String CONTINUATIONS_STORE_VALIDATIONS = "__CONTINUATIONS_STORE_VALIDATIONS";
-    static final String CONTINUATIONS_STORE_VALIDATIONPLUGIN_KEYS = "__CONTINUATIONS_STORE_VALIDATIONPLUGIN_KEYS";
 
     public static Object[] getActionMethod(String fullAction) {
         Method actionMethod = null;
