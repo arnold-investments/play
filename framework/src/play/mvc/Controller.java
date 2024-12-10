@@ -497,18 +497,6 @@ public class Controller implements PlayController, ControllerSupport {
     }
 
     /**
-     * Add a value to the flash scope
-     *
-     * @param key
-     *            The key
-     * @param value
-     *            The value
-     */
-    protected static void flash(Scope.Flash flash, String key, Object value) {
-        flash.put(key, value);
-    }
-
-    /**
      * Send a 302 redirect response.
      *
      * @param url
@@ -644,9 +632,9 @@ public class Controller implements PlayController, ControllerSupport {
         }
     }
 
-    protected static boolean templateExists(Http.Request request, String templateName) {
+    protected boolean templateExists(String templateName) {
         try {
-            TemplateLoader.load(template(request, templateName));
+            TemplateLoader.load(template(templateName));
             return true;
         } catch (TemplateNotFoundException ex) {
             return false;
@@ -664,6 +652,10 @@ public class Controller implements PlayController, ControllerSupport {
         Map<String, Object> templateBinding = new HashMap<>(16);
 
         renderTemplate(context, templateName, templateBinding);
+    }
+
+    protected void renderTemplate(String templateName) {
+        renderTemplate(context, templateName);
     }
 
     /**
@@ -684,7 +676,7 @@ public class Controller implements PlayController, ControllerSupport {
         templateBinding.put("params", context.getParams());
         templateBinding.put("errors", context.getValidation().errors());
         try {
-            Template template = TemplateLoader.load(template(context.getRequest(), templateName));
+            Template template = TemplateLoader.load(template(context, templateName));
             throw new RenderTemplate(context, template, templateBinding.data);
         } catch (TemplateNotFoundException ex) {
             if (ex.isSourceAvailable()) {
@@ -701,14 +693,22 @@ public class Controller implements PlayController, ControllerSupport {
         }
     }
 
+    protected void renderTemplate(String templateName, Map<String, Object> args) {
+        renderTemplate(context, templateName, args);
+    }
+
     /**
      * Render the template corresponding to the action's package-class-method name (@see <code>template()</code>).
      *
      * @param args
      *            The template data.
      */
-    protected static void renderTemplate(Context context, Map<String, Object> args) {
-        renderTemplate(context, template(context.getRequest()), args);
+    public static void renderTemplate(Context context, Map<String, Object> args) {
+        renderTemplate(context, template(context), args);
+    }
+
+    protected void renderTemplate(Map<String, Object> args) {
+        renderTemplate(context, args);
     }
 
     /**
@@ -716,9 +716,13 @@ public class Controller implements PlayController, ControllerSupport {
      *
      */
     protected static void render(Context context) {
-        String templateName = template(context.getRequest());
+        String templateName = template(context);
 
         renderTemplate(context, templateName);
+    }
+
+    protected void render() {
+        render(context);
     }
 
     /**
@@ -727,7 +731,9 @@ public class Controller implements PlayController, ControllerSupport {
      * 
      * @return The template name
      */
-    protected static String template(Http.Request request) {
+    protected static String template(Context context) {
+	    Http.Request request = context.getRequest();
+
         String format = request.format;
         String templateName = request.action.replace('.', '/') + "." + (format == null ? "html" : format);
         if (templateName.startsWith("@")) {
@@ -740,6 +746,10 @@ public class Controller implements PlayController, ControllerSupport {
         return null == templateNameResolver ? templateName : templateNameResolver.resolveTemplateName(templateName);
     }
 
+    protected String template() {
+        return template(context);
+    }
+
     /**
      * Work out the default template to load for the action. E.g. "controllers.Pages.index" returns
      * "views/Pages/index.html".
@@ -748,7 +758,9 @@ public class Controller implements PlayController, ControllerSupport {
      *            The template name to work out
      * @return The template name
      */
-    protected static String template(Http.Request request, String templateName) {
+    protected static String template(Context context, String templateName) {
+        Http.Request request = context.getRequest();
+
         String format = request.format;
         if (templateName.startsWith("@")) {
             templateName = templateName.substring(1);
@@ -758,6 +770,10 @@ public class Controller implements PlayController, ControllerSupport {
             templateName = templateName.replace('.', '/') + "." + (format == null ? "html" : format);
         }
         return templateName;
+    }
+
+    protected String template(String templateName) {
+        return template(context, templateName);
     }
 
     /**

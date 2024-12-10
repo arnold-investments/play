@@ -437,7 +437,7 @@ public class ActionInvoker {
 			        throw result;
 		        case InputStream inputStream -> Controller.renderBinary(inputStream);
                 case File file -> Controller.renderBinary(file);
-                case Map<?, ?> map ->  Controller.renderTemplate(context, (Map<String, Object>) map);
+                case Map<?, ?> map -> Controller.renderTemplate(context, (Map<String, Object>) map);
 		        default -> Controller.renderHtml(o);
 	        }
         }
