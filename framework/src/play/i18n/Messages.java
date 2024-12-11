@@ -10,7 +10,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import play.Play;
-import play.data.binding.Binder;
 import play.mvc.Context;
 
 /**
@@ -56,11 +55,15 @@ public class Messages {
      * @return translated message
      */
     public static String get(Context context, Object key, Object... args) {
-        return getMessage(context, Lang.get(context), key, args);
+        return getMessage(Lang.get(context), key, args);
+    }
+
+    public static String get(String locale, Object key, Object... args) {
+        return getMessage(locale, key, args);
     }
 
     public String get(Object key, Object... args) {
-        return getMessage(context, Lang.get(context), key, args);
+        return getMessage(Lang.get(context), key, args);
     }
 
     /**
@@ -99,9 +102,9 @@ public class Messages {
         return result;
     }
 
-    public static String getMessage(Context context, String locale, Object key, Object... args) {
+    public static String getMessage(String localeStr, Object key, Object... args) {
         // Check if there is a plugin that handles translation
-        String message = Play.pluginCollection.getMessage(locale, key, args);
+        String message = Play.pluginCollection.getMessage(localeStr, key, args);
         if (message != null) {
             return message;
         }
@@ -110,13 +113,11 @@ public class Messages {
             return "";
         }
         String value = null;
-        if (locales != null) {
-            if (locales.containsKey(locale)) {
-                value = locales.get(locale).getProperty(key.toString());
-            }
-            if (value == null && locale != null && locale.length() == 5 && locales.containsKey(locale.substring(0, 2))) {
-                value = locales.get(locale.substring(0, 2)).getProperty(key.toString());
-            }
+        if (locales.containsKey(localeStr)) {
+            value = locales.get(localeStr).getProperty(key.toString());
+        }
+        if (value == null && localeStr != null && localeStr.length() == 5 && locales.containsKey(localeStr.substring(0, 2))) {
+            value = locales.get(localeStr.substring(0, 2)).getProperty(key.toString());
         }
         if (value == null && defaults != null) {
             value = defaults.getProperty(key.toString());
@@ -124,69 +125,37 @@ public class Messages {
         if (value == null) {
             value = key.toString();
         }
-        Locale l = Lang.getLocaleOrDefault(locale);
-        return formatString(context, l, value, args);
+        Locale l = Lang.getLocaleOrDefault(localeStr);
+        return formatString(l, value, args);
     }
 
-    public static String formatString(Context context, Locale locale, String value, Object... args) {
-        String message = String.format(locale, value, coolStuff(context, value, args));
+    public static String formatString(Locale locale, String value, Object... args) {
+        String message = String.format(locale, value, filterForStringFormat(args));
 
         Matcher matcher = recursive.matcher(message);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            matcher.appendReplacement(sb, get(context, matcher.group(1)));
+            matcher.appendReplacement(sb, get(locale.toString(), matcher.group(1)));
         }
+
         matcher.appendTail(sb);
         return sb.toString();
     }
 
-    static final Pattern formatterPattern = Pattern.compile("%((\\d+)\\$)?([-#+ 0,(]+)?(\\d+)?([.]\\d+)?([bBhHsScCdoxXeEfgGaAtT])");
-
     @SuppressWarnings("unchecked")
-    static Object[] coolStuff(Context context, String pattern, Object[] args) {
+    static Object[] filterForStringFormat(Object[] args) {
         // when invoked with a null argument we get a null args instead of an
         // array with a null value.
 
         if (args == null)
             return NO_ARGS;
 
-        Class<? extends Number>[] conversions = new Class[args.length];
-
-        Matcher matcher = formatterPattern.matcher(pattern);
-        int incrementalPosition = 1;
-        while (matcher.find()) {
-            String conversion = matcher.group(6);
-            Integer position;
-            if (matcher.group(2) == null) {
-                position = incrementalPosition++;
-            } else {
-                position = Integer.parseInt(matcher.group(2));
-            }
-            if (conversion.equals("d") && position <= conversions.length) {
-                conversions[position - 1] = Long.class;
-            }
-            if (conversion.equals("f") && position <= conversions.length) {
-                conversions[position - 1] = Double.class;
-            }
-        }
-
         Object[] result = new Object[args.length];
         for (int i = 0; i < args.length; i++) {
             if (args[i] == null) {
                 continue;
             }
-            if (conversions[i] == null) {
-                result[i] = args[i];
-            } else {
-                try {
-                    // TODO: I think we need to type of direct bind -> primitive
-                    // and object binder
-                    result[i] = Binder.directBind(context, null, args[i] + "", conversions[i], null);
-                } catch (Exception e) {
-                    // Ignore
-                    result[i] = null;
-                }
-            }
+            result[i] = args[i];
         }
         return result;
     }

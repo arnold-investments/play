@@ -17,8 +17,7 @@ import play.mvc.Scope;
  * Language support
  */
 public class Lang {
-    private static final Map<String, Locale> cache = new HashMap<>();
-    
+
     /**
      * Retrieve the current language or null
      *
@@ -198,31 +197,6 @@ public class Lang {
             return null;
         }
 
-        Locale result = cache.get(localeStr);
-        
-        if (result == null) {
-            result = findLocale(localeStr);
-            cache.put(localeStr, result);
-        }
-        
-        return result;
-    }
-
-    private static Locale findLocale(String localeStr) {
-        String lang = localeStr;
-        int splitPos = lang.indexOf('_');
-        if (splitPos > 0) {
-            lang = lang.substring(0, splitPos);
-        }
-
-        Locale result = null;
-        for (Locale locale : Locale.getAvailableLocales()) {
-            if (locale.toString().equalsIgnoreCase(localeStr)) {
-                return locale;
-            } else if (locale.getLanguage().equalsIgnoreCase(lang)) {
-                result = locale;
-            }
-        }
-        return result;
+        return Locale.of(localeStr);
     }
 }

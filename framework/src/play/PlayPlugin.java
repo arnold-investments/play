@@ -7,6 +7,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.google.gson.JsonObject;
