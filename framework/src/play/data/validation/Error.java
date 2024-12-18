@@ -44,11 +44,11 @@ public class Error {
      * @return The translated message
      */
     public String message(String key) {
-        key = Messages.get(context, key);
+        key = Messages.get(context.getLocaleStr(), key);
         Object[] args = new Object[variables.length + 1];
         System.arraycopy(variables, 0, args, 1, variables.length);
         args[0] = key;
-        return Messages.get(context, message, args);
+        return Messages.get(context.getLocaleStr(), message, args);
     }
 
     @Override

@@ -54,10 +54,6 @@ public class Messages {
      *            optional message format arguments
      * @return translated message
      */
-    public static String get(Context context, Object key, Object... args) {
-        return getMessage(Lang.get(context), key, args);
-    }
-
     public static String get(String locale, Object key, Object... args) {
         return getMessage(locale, key, args);
     }

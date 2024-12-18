@@ -304,7 +304,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 } catch (Exception e) {
                     size = length + " bytes";
                 }
-                error.append(Messages.get(context, warning, size));
+                error.append(Messages.get(context.getLocaleStr(), warning, size));
                 error.append("\u0001");
                 error.append(size);
                 error.append("\u0000");

@@ -3,9 +3,7 @@ package play.i18n;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import play.Logger;
 import play.Play;
 import play.mvc.Context;
@@ -24,7 +22,7 @@ public class Lang {
      * @return The current language (fr, ja, it ...) or null
      */
     public static String get(Context context) {
-        String locale = context.getLocale();
+        String locale = context.getLocaleStr();
         if (locale == null) {
             // don't have current locale for this request - must try to resolve it
             Http.Request currentRequest = context.getRequest();
@@ -36,7 +34,7 @@ public class Lang {
                 setDefaultLocale(context);
             }
             // get the picked locale
-            locale = context.getLocale();
+            locale = context.getLocaleStr();
         }
         return locale;
     }
@@ -50,7 +48,8 @@ public class Lang {
      */
     public static boolean set(Context context, String locale) {
         if (locale.isEmpty() || Play.langs.contains(locale)) {
-            context.setLocale(locale);
+            context.setLocaleStr(locale);
+            context.setLocale(Locale.forLanguageTag(locale));
             return true;
         } else {
             Logger.warn("Locale %s is not defined in your application.conf", locale);
@@ -63,6 +62,7 @@ public class Lang {
      * if not manually set.
      */
     public static void clear(Context context) {
+        context.setLocaleStr(null);
         context.setLocale(null);
     }
 

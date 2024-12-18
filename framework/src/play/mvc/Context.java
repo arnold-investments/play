@@ -2,6 +2,7 @@ package play.mvc;
 
 
 import java.lang.reflect.Method;
+import java.util.Locale;
 import java.util.Stack;
 import play.data.binding.CachedBoundActionMethodArgs;
 import play.data.validation.Validation;
@@ -21,9 +22,9 @@ public class Context {
 
 	private CachedBoundActionMethodArgs cachedBoundActionMethodArgs;
 
-	private Stack<String> currentAction;
+	private String localeStr;
 
-	private String locale;
+	private Locale locale;
 
 	public Context(Http.Request request, Http.Response response) {
 		this(request, response, null, null);
@@ -45,8 +46,6 @@ public class Context {
 		flash = this.request == null ? new Scope.Flash() : Scope.Flash.restore(request);
 
 		initCachedBoundActionMethodArgs();
-
-		currentAction = new Stack<>();
 	}
 
 	public Method getActionMethod() {
@@ -130,11 +129,19 @@ public class Context {
 		return routeArgs;
 	}
 
-	public String getLocale() {
+	public Locale getLocale() {
 		return locale;
 	}
 
-	public void setLocale(String locale) {
+	public void setLocale(Locale locale) {
 		this.locale = locale;
+	}
+
+	public String getLocaleStr() {
+		return localeStr;
+	}
+
+	public void setLocaleStr(String localeStr) {
+		this.localeStr = localeStr;
 	}
 }
