@@ -109,6 +109,10 @@ public class Context {
 		return cachedBoundActionMethodArgs;
 	}
 
+	public Http.Inbound getInbound() {
+		return inbound;
+	}
+
 	public void setInbound(Http.Inbound inbound) {
 		this.inbound = inbound;
 	}
