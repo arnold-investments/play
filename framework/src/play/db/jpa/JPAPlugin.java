@@ -25,7 +25,6 @@ import org.hibernate.jpa.boot.internal.PersistenceUnitInfoDescriptor;
 import play.Logger;
 import play.Play;
 import play.PlayPlugin;
-import play.classloading.ApplicationClasses.ApplicationClass;
 import play.data.binding.Binder;
 import play.data.binding.ParamNode;
 import play.data.binding.RootParamNode;
@@ -102,11 +101,6 @@ public class JPAPlugin extends PlayPlugin {
         }
         return null;
     }
-
-    @Override
-    public void enhance(ApplicationClass applicationClass) throws Exception {
-        new JPAEnhancer().enhanceThisClass(applicationClass);
-    }
      
     public EntityManager em(String key) {
         EntityManagerFactory emf = JPA.emfs.get(key);
@@ -145,7 +139,6 @@ public class JPAPlugin extends PlayPlugin {
                 thread.setContextClassLoader(contextClassLoader);
             }
         }
-        JPQL.instance = new JPQL();
     }
 
     private List<Class<?>> entityClasses(String dbName) {
