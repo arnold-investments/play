@@ -604,16 +604,16 @@ public class PluginCollection {
         }
     }
 
-    public void afterApplicationStart() {
+    public void afterApplicationStart(Context context) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.afterApplicationStart();
+            plugin.afterApplicationStart(context);
         }
     }
 
-    public void onApplicationStop() {
+    public void onApplicationStop(Context context) {
         for (PlayPlugin plugin : getReversedEnabledPlugins()) {
             try {
-                plugin.onApplicationStop();
+                plugin.onApplicationStop(context);
             } catch (Throwable t) {
                 if (t.getMessage() == null)
                     Logger.error(t, "Error while stopping %s", plugin);

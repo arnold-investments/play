@@ -172,11 +172,11 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
 
     // Customize Invocation
     @Override
-    public void onException(Context context, Throwable e) {
+    public void onException(Throwable e) {
         wasError = true;
         lastException = e;
         try {
-            super.onException(context, e);
+            super.onException(e);
         } catch (Throwable ex) {
             Logger.error(ex, "Error during job execution (%s)", this);
             throw new UnexpectedException(unwrap(e));
@@ -209,7 +209,7 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
         Monitor monitor = null;
         try {
             if (init()) {
-                before(context);
+                before();
                 V result = null;
 
                 try {
@@ -242,23 +242,23 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
                     }
                     throw e;
                 }
-                after(context);
+                after();
                 return result;
             }
         } catch (Throwable e) {
-            onException(context, e);
+            onException(e);
         } finally {
             if (monitor != null) {
                 monitor.stop();
             }
-            _finally(context);
+            _finally();
         }
         return null;
     }
 
     @Override
-    public void _finally(Context context) {
-        super._finally(context);
+    public void _finally() {
+        super._finally();
         if (executor == JobsPlugin.executor) {
             JobsPlugin.scheduleForCRON(this);
         }

@@ -1,8 +1,8 @@
 %{
 if (_keys) {
-    ymessages = play.i18n.Messages.find(play.i18n.Lang.get(), _keys as Set);
+    ymessages = play.i18n.Messages.find(lang, _keys as Set);
 } else {
-    ymessages = play.i18n.Messages.all(play.i18n.Lang.get());
+    ymessages = play.i18n.Messages.all(lang);
 }
 js_messages=new com.google.gson.Gson().toJson(ymessages);
 }%

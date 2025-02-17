@@ -40,10 +40,16 @@ public class Context {
 		this.inbound = inbound;
 		this.outbound = outbound;
 
+		this.clear();
+	}
+
+	public void clear() {
 		renderArgs = new Scope.RenderArgs();
 		routeArgs = new Scope.RouteArgs();
 		session = this.request == null ? new Scope.Session() : Scope.Session.restore(this);
 		flash = this.request == null ? new Scope.Flash() : Scope.Flash.restore(request);
+
+		validation = new Validation();
 
 		initCachedBoundActionMethodArgs();
 	}
@@ -58,15 +64,6 @@ public class Context {
 
 	public void clearCachedBoundActionMethodArgs() {
 		cachedBoundActionMethodArgs = null;
-	}
-
-	public void clear() {
-		renderArgs = null;
-		routeArgs = null;
-		session = null;
-		flash = null;
-
-		initCachedBoundActionMethodArgs();
 	}
 
 	public Scope.Params getParams() {

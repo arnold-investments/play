@@ -88,7 +88,7 @@ public class ActionInvoker {
     }
 
     private static void _invoke(Context context, IInvokeAction action, IPrepareInvokeAction prepareAction) {
-        var ctx = new WrapInvokeActionCtx();
+        WrapInvokeActionCtx ctx = new WrapInvokeActionCtx();
         boolean skipFinally = false;
 
         try {
@@ -216,7 +216,7 @@ public class ActionInvoker {
         Monitor apply(Context context) throws NoSuchFieldException, UnsupportedEncodingException, IllegalAccessException;
     }
 
-    private static Monitor prepareInvokeAction(Context context) throws NoSuchFieldException, UnsupportedEncodingException, IllegalAccessException {
+    private static Monitor prepareInvokeAction(Context context) throws UnsupportedEncodingException {
         // FIXME: did init here before - do we need to re-init?
 
         // 1. Prepare request params
@@ -457,11 +457,19 @@ public class ActionInvoker {
             request.controllerInstance.setContext(context);
         }
 
-        Object[] args = forceArgs != null ? forceArgs : getActionMethodArgs(context, request.controllerInstance);
+        Object[] args = forceArgs != null
+            ? forceArgs
+            : getActionMethodArgs(context, method, request.controllerInstance);
 
-        Object methodClassInstance = isStatic ? null :
-            (method.getDeclaringClass().isAssignableFrom(request.controllerClass)) ? request.controllerInstance :
-                Injector.getBeanOfType(method.getDeclaringClass());
+        Object methodClassInstance = isStatic
+            ? null
+            : method.getDeclaringClass().isAssignableFrom(request.controllerClass)
+                ? request.controllerInstance
+                : Injector.getBeanOfType(method.getDeclaringClass());
+
+        if (methodClassInstance instanceof Controller controller) {
+            controller.setContext(context);
+        }
 
         return invoke(method, methodClassInstance, args);
     }
@@ -518,9 +526,7 @@ public class ActionInvoker {
         return new Object[] { controllerClass, actionMethod };
     }
 
-    public static Object[] getActionMethodArgs(Context context, Object o) throws Exception {
-        Method method = context.getActionMethod();
-
+    public static Object[] getActionMethodArgs(Context context, Method method, Object o) throws Exception {
         String[] paramsNames = Java.parameterNames(method);
         if (paramsNames == null && method.getParameterTypes().length > 0) {
             throw new UnexpectedException("Parameter names not found for method " + method);

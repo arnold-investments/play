@@ -1,11 +1,11 @@
 package play.jobs;
 
+import java.lang.reflect.InvocationTargetException;
 import play.Logger;
 import play.Play;
 import play.PlayPlugin;
 import play.exceptions.PlayException;
 import play.exceptions.UnexpectedException;
-import play.inject.Injector;
 import play.libs.CronExpression;
 import play.libs.Expression;
 import play.libs.Time;
@@ -98,14 +98,14 @@ public class JobsPlugin extends PlayPlugin {
     }
 
     @Override
-    public void afterApplicationStart() {
-        List<Class<?>> jobs = new ArrayList<>();
+    public void afterApplicationStart(Context context) {
+        List<Class<? extends Job<?>>> jobs = new ArrayList<>();
         for (Class<?> clazz : Play.classloader.getAllClasses()) {
             if (Job.class.isAssignableFrom(clazz)) {
-                jobs.add(clazz);
+                jobs.add((Class<? extends Job<?>>)clazz);
             }
         }
-        for (Class<?> clazz : jobs) {
+        for (Class<? extends Job<?>> clazz : jobs) {
             // @OnApplicationStart
             if (clazz.isAnnotationPresent(OnApplicationStart.class)) {
                 // check if we're going to run the job sync or async
@@ -113,7 +113,7 @@ public class JobsPlugin extends PlayPlugin {
                 if (!appStartAnnotation.async()) {
                     // run job sync
                     try {
-                        Job<?> job = createJob(clazz);
+                        Job<?> job = createJob(clazz, context);
                         job.run();
                         if (job.wasError) {
                             if (job.lastException != null) {
@@ -132,12 +132,12 @@ public class JobsPlugin extends PlayPlugin {
                 } else {
                     // run job async
                     try {
-                        Job<?> job = createJob(clazz);
+                        Job<?> job = createJob(clazz, context);
                         // start running job now in the background
                         @SuppressWarnings("unchecked")
                         Callable<Job<?>> callable = (Callable<Job<?>>) job;
                         executor.submit(callable);
-                    } catch (InstantiationException | IllegalAccessException ex) {
+                    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException ex) {
                         throw new UnexpectedException("Cannot instantiate Job " + clazz.getName(), ex);
                     }
                 }
@@ -146,16 +146,16 @@ public class JobsPlugin extends PlayPlugin {
             // @On
             if (clazz.isAnnotationPresent(On.class)) {
                 try {
-                    Job<?> job = createJob(clazz);
+                    Job<?> job = createJob(clazz, context);
                     scheduleForCRON(job);
-                } catch (InstantiationException | IllegalAccessException ex) {
+                } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException ex) {
                     throw new UnexpectedException("Cannot instantiate Job " + clazz.getName(), ex);
                 }
             }
             // @Every
             if (clazz.isAnnotationPresent(Every.class)) {
                 try {
-                    Job<?> job = createJob(clazz);
+                    Job<?> job = createJob(clazz, context);
                     String value = clazz.getAnnotation(Every.class).value();
                     if (value.startsWith("cron.")) {
                         value = Play.configuration.getProperty(value);
@@ -164,18 +164,20 @@ public class JobsPlugin extends PlayPlugin {
                     if (!"never".equalsIgnoreCase(value)) {
                         executor.scheduleWithFixedDelay(job, Time.parseDuration(value), Time.parseDuration(value), TimeUnit.SECONDS);
                     }
-                } catch (InstantiationException | IllegalAccessException ex) {
+                } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException ex) {
                     throw new UnexpectedException("Cannot instantiate Job " + clazz.getName(), ex);
                 }
             }
         }
     }
 
-    private Job<?> createJob(Class<?> clazz) throws InstantiationException, IllegalAccessException {
-        Job<?> job = (Job<?>) Injector.getBeanOfType(clazz);
+    private Job<?> createJob(Class<? extends Job<?>> clazz, Context context) throws InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
+        Job<?> job = clazz.getDeclaredConstructor(Context.class).newInstance(context);
+
         if (!job.getClass().equals(clazz)) {
             throw new RuntimeException("Enhanced job are not allowed: " + clazz.getName() + " vs. " + job.getClass().getName());
         }
+
         scheduledJobs.add(job);
         return job;
     }
@@ -226,15 +228,15 @@ public class JobsPlugin extends PlayPlugin {
     }
 
     @Override
-    public void onApplicationStop() {
+    public void onApplicationStop(Context context) {
 
         List<Class> jobs = Play.classloader.getAssignableClasses(Job.class);
 
-        for (Class<?> clazz : jobs) {
+        for (Class<? extends Job<?>> clazz : jobs) {
             // @OnApplicationStop
             if (clazz.isAnnotationPresent(OnApplicationStop.class)) {
                 try {
-                    Job<?> job = createJob(clazz);
+                    Job<?> job = createJob(clazz, context);
                     job.run();
                     if (job.wasError) {
                         if (job.lastException != null) {

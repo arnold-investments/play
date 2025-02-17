@@ -485,7 +485,7 @@ public class Play {
         try {
 
             if (started) {
-                stop();
+                stop(context);
             }
 
             if (standalonePlayServer) {
@@ -493,9 +493,9 @@ public class Play {
                 if (!shutdownHookEnabled) {
                     // registers shutdown hook - Now there's a good chance that we can notify
                     // our plugins that we're going down when some calls ctrl+c or just kills our
-                    // process..
+                    // process...
                     shutdownHookEnabled = true;
-                    Thread hook = new Thread(Play::stop);
+                    Thread hook = new Thread(() -> stop(null)); // FIXME: might need to pass new context
                     hook.setContextClassLoader(ClassLoader.getSystemClassLoader());
                     Runtime.getRuntime().addShutdownHook(hook);
                 }
@@ -583,7 +583,7 @@ public class Play {
             startedAt = System.currentTimeMillis();
 
             // Plugins
-            pluginCollection.afterApplicationStart();
+            pluginCollection.afterApplicationStart(context);
 
         } catch (PlayException e) {
             started = false;
@@ -605,10 +605,10 @@ public class Play {
     /**
      * Stop the application
      */
-    public static synchronized void stop() {
+    public static synchronized void stop(Context context) {
         if (started) {
             Logger.trace("Stopping the play application");
-            pluginCollection.onApplicationStop();
+            pluginCollection.onApplicationStop(context);
             started = false;
             Cache.stop();
             Router.lastLoading = 0L;

@@ -334,18 +334,18 @@ public abstract class FunctionalTest extends BaseTest {
             }
 
             @Override
-            public void onSuccess(Context context) throws Exception {
+            public void onSuccess() throws Exception {
                 try {
-                    super.onSuccess(context);
+                    super.onSuccess();
                 } finally {
                     onActionCompleted();
                 }
             }
 
             @Override
-            public void onException(Context context, Throwable e) {
+            public void onException(Throwable e) {
                 try {
-                    super.onException(context, e);
+                    super.onException(e);
                 } finally {
                     onActionCompleted();
                 }

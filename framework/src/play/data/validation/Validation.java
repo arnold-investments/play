@@ -19,7 +19,7 @@ public class Validation {
     final List<Error> errors = new ArrayList<>();
     boolean keep = false;
 
-    protected Validation() {
+    public Validation() {
     }
 
     /**

@@ -273,7 +273,7 @@ public class JPAPlugin extends PlayPlugin {
     }
 
     @Override
-    public void onApplicationStop() {
+    public void onApplicationStop(Context context) {
         closeAllPersistenceUnits();    
     }
 

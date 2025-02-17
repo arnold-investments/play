@@ -238,7 +238,7 @@ public class Invoker {
         /**
          * Things to do before an Invocation
          */
-        public void before(Context context) {
+        public void before() {
             Thread.currentThread().setContextClassLoader(Play.classloader);
             Play.pluginCollection.beforeInvocation(context);
         }
@@ -246,7 +246,7 @@ public class Invoker {
         /**
          * Things to do after an Invocation. (if the Invocation code has not thrown any exception)
          */
-        public void after(Context context) {
+        public void after() {
             Play.pluginCollection.afterInvocation(context);
         }
 
@@ -256,7 +256,7 @@ public class Invoker {
          * @throws java.lang.Exception
          *             Thrown if Invoker encounters any problems
          */
-        public void onSuccess(Context context) throws Exception {
+        public void onSuccess() throws Exception {
             Play.pluginCollection.onInvocationSuccess(context);
         }
 
@@ -265,7 +265,7 @@ public class Invoker {
          *
          * @param e       The exception
          */
-        public void onException(Context context, Throwable e) {
+        public void onException(Throwable e) {
             Play.pluginCollection.onInvocationException(context, e);
             if (e instanceof PlayException) {
                 throw (PlayException) e;
@@ -290,7 +290,7 @@ public class Invoker {
         /**
          * Things to do in all cases after the invocation.
          */
-        public void _finally(Context context) {
+        public void _finally() {
             Play.pluginCollection.invocationFinally(context);
             InvocationContext.current.remove();
         }
@@ -314,7 +314,7 @@ public class Invoker {
             try {
                 preInit(context);
                 if (init()) {
-                    before(context);
+                    before();
                     final AtomicBoolean executed = new AtomicBoolean(false);
                     this.withinFilter(() -> {
                         executed.set(true);
@@ -325,28 +325,28 @@ public class Invoker {
                     if (!executed.get()) {
                         execute();
                     }
-                    after(context);
-                    onSuccess(context);
+                    after();
+                    onSuccess();
                 }
             } catch (AsyncRequest e) {
-                after(context);
+                after();
                 e.task.onRedeem(p -> {
                     try {
-                        onSuccess(context);
+                        onSuccess();
                     } catch (Throwable ex) {
-                        onException(context, ex);
+                        onException(ex);
                     } finally {
-                        _finally(context);
+                        _finally();
                     }
                 });
 
             } catch (Suspend e) {
                 suspend(e);
-                after(context);
+                after();
             } catch (Throwable e) {
-                onException(context, e);
+                onException(e);
             } finally {
-                _finally(context);
+                _finally();
             }
         }
     }

@@ -7,7 +7,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import com.google.gson.JsonObject;
@@ -206,7 +205,7 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
      * Give a chance to this plugin to fully manage this request
      *
      * @param context@return true if this plugin has managed this request
-     * @throws java.lang.Exception if cannot enhance the class
+     * @throws java.lang.Exception if the plugin cannot enhance the class
      */
     public boolean rawInvocation(Context context) throws Exception {
         return false;
@@ -263,13 +262,13 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
     /**
      * Called after the application start.
      */
-    public void afterApplicationStart() {
+    public void afterApplicationStart(Context context) {
     }
 
     /**
-     * Called at application stop (and before each reloading) Time to shutdown stateful things.
+     * Called at application stop (and before each reloading) Time to shut down stateful things.
      */
-    public void onApplicationStop() {
+    public void onApplicationStop(Context context) {
     }
 
     /**

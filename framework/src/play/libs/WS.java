@@ -27,6 +27,7 @@ import play.PlayPlugin;
 import play.libs.F.Promise;
 import play.libs.ws.WSAsync;
 import play.libs.ws.WSUrlFetch;
+import play.mvc.Context;
 import play.mvc.Http;
 import play.mvc.Http.Header;
 import play.utils.HTTP;
@@ -149,7 +150,7 @@ public class WS extends PlayPlugin {
     }
 
     @Override
-    public void onApplicationStop() {
+    public void onApplicationStop(Context context) {
         if (wsImpl != null) {
             wsImpl.stop();
             wsImpl = null;

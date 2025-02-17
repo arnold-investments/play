@@ -172,10 +172,10 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 Logger.trace("init: begin");
             }
 
-            context.clear();
+            // JB: no need to clear context here as we work with a fresh context for every invocation
+            // context.clear();
 
             Http.Request request = context.getRequest();
-            Http.Response response = context.getResponse();
 
             try {
                 if (Play.mode == Play.Mode.DEV) {
@@ -263,8 +263,8 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         }
 
         @Override
-        public void onSuccess(Context context) throws Exception {
-            super.onSuccess(context);
+        public void onSuccess() throws Exception {
+            super.onSuccess();
 
             Http.Request request = this.context.getRequest();
             Http.Response response = this.context.getResponse();
@@ -1205,17 +1205,17 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         }
 
         @Override
-        public void onException(Context context, Throwable e) {
+        public void onException(Throwable e) {
             Logger.error(e, "Internal Server Error in WebSocket (closing the socket) for request %s",
                     context.getRequest().method + " " + context.getRequest().url);
             ctx.getChannel().close();
-            super.onException(context, e);
+            super.onException(e);
         }
 
         @Override
-        public void onSuccess(Context context) throws Exception {
+        public void onSuccess() throws Exception {
             context.getOutbound().close();
-            super.onSuccess(context);
+            super.onSuccess();
         }
     }
 }

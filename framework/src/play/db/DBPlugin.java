@@ -126,7 +126,7 @@ public class DBPlugin extends PlayPlugin {
     }
     
     @Override
-    public void onApplicationStop() {
+    public void onApplicationStop(play.mvc.Context context) {
         if (Play.mode.isProd()) {
             DB.destroyAll();
         }
