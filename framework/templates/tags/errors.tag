@@ -8,9 +8,9 @@ errors are returned
 %{ 
         _field = _arg ?: _field 
         if (! _field) { 
-                validations = play.data.validation.Validation.errors() 
+                validations = context.getValidation().errors()
         } else { 
-                validations = play.data.validation.Validation.errors(_field) 
+                validations = context.getValidation().errors(_field)
         } 
         size = validations.size()
         validations.eachWithIndex() { item, i -> 
