@@ -128,7 +128,7 @@ public class Validation {
      */
     public List<Error> errors(String field) {
         List<Error> errors = new ArrayList<>();
-        for (Error error : errors) {
+        for (Error error : this.errors) {
             if (error.key!=null && error.key.equals(field)) {
                 errors.add(error);
             }
