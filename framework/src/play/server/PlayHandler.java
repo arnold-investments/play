@@ -127,7 +127,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 } else {
 
                     // Delegate to Play framework
-                    Invoker.invoke(new NettyInvocation(request, response, ctx, nettyRequest, messageEvent));
+                    Invoker.invoke(new NettyInvocation(context, ctx, nettyRequest, messageEvent));
 
                 }
 
@@ -157,9 +157,9 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         private final MessageEvent event;
 
 
-        public NettyInvocation(Request request, Response response, ChannelHandlerContext ctx, HttpRequest nettyRequest,
+        public NettyInvocation(Context context, ChannelHandlerContext ctx, HttpRequest nettyRequest,
                 MessageEvent e) {
-            super(new Context(request, response));
+            super(context);
 	        this.ctx = ctx;
             this.nettyRequest = nettyRequest;
             this.event = e;
