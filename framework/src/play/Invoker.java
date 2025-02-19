@@ -1,21 +1,16 @@
 package play;
 
+import com.jamonapi.Monitor;
+import com.jamonapi.MonitorFactory;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.jamonapi.Monitor;
-import com.jamonapi.MonitorFactory;
-
 import play.Play.Mode;
 import play.classloading.ApplicationClassloader;
 import play.exceptions.PlayException;
@@ -24,6 +19,7 @@ import play.i18n.Lang;
 import play.libs.F;
 import play.libs.F.Promise;
 import play.mvc.Context;
+import play.mvc.Http;
 import play.utils.PThreadFactory;
 
 /**
@@ -66,30 +62,13 @@ public class Invoker {
     }
 
     /**
-     * Run the code in the same thread than caller.
+     * Run the code in the same thread as the caller.
      * 
      * @param invocation
      *            The code to run
      */
     public static void invokeInThread(DirectInvocation invocation) {
-        boolean retry = true;
-        while (retry) {
-            invocation.run();
-            if (invocation.retry == null) {
-                retry = false;
-            } else {
-                try {
-                    if (invocation.retry.task != null) {
-                        invocation.retry.task.get();
-                    } else {
-                        Thread.sleep(invocation.retry.timeout);
-                    }
-                } catch (Exception e) {
-                    throw new UnexpectedException(e);
-                }
-                retry = true;
-            }
-        }
+        invocation.run();
     }
 
     static void resetClassloaders() {
@@ -105,14 +84,8 @@ public class Invoker {
      * The class/method that will be invoked by the current operation
      */
     public static class InvocationContext {
-
-        public static final ThreadLocal<InvocationContext> current = new ThreadLocal<>();
         private final List<Annotation> annotations;
         private final String invocationType;
-
-        public static InvocationContext current() {
-            return current.get();
-        }
 
         public InvocationContext(String invocationType) {
             this.invocationType = invocationType;
@@ -229,7 +202,7 @@ public class Invoker {
                 }
                 Play.start(context);
             }
-            InvocationContext.current.set(getInvocationContext());
+            context.setInvocationContext(getInvocationContext());
             return true;
         }
 
@@ -273,32 +246,18 @@ public class Invoker {
             throw new UnexpectedException(e);
         }
 
-        /**
-         * The request is suspended
-         * 
-         * @param suspendRequest
-         *            the suspended request
-         */
-        public void suspend(Suspend suspendRequest) {
-            if (suspendRequest.task != null) {
-                WaitForTasksCompletion.waitFor(suspendRequest.task, this);
-            } else {
-                Invoker.invoke(this, suspendRequest.timeout);
-            }
-        }
-
-        /**
+         /**
          * Things to do in all cases after the invocation.
          */
         public void _finally() {
             Play.pluginCollection.invocationFinally(context);
-            InvocationContext.current.remove();
         }
 
-        private void withinFilter(play.libs.F.Function0<Void> fct) throws Throwable {
+
+        public static void withinFilter(Context context, play.libs.F.Function0<Void> fct) throws Throwable {
             F.Option<PlayPlugin.Filter<Void>> filters = Play.pluginCollection.composeFilters();
             if (filters.isDefined()) {
-                filters.get().withinFilter(fct);
+                filters.get().withinFilter(context, fct);
             }
         }
 
@@ -316,7 +275,7 @@ public class Invoker {
                 if (init()) {
                     before();
                     final AtomicBoolean executed = new AtomicBoolean(false);
-                    this.withinFilter(() -> {
+                    withinFilter(context, () -> {
                         executed.set(true);
                         execute();
                         return null;
@@ -332,24 +291,38 @@ public class Invoker {
                 after();
                 e.task.onRedeem(p -> {
                     try {
-                        onSuccess();
-                    } catch (Throwable ex) {
-                        onException(ex);
-                    } finally {
-                        _finally();
+                        try {
+                            Throwable ex = p.getExceptionOrNull();
+                            if (ex != null) {
+                                throw ex;
+                            }
+
+                            onSuccess();
+                        } catch (Throwable ie) {
+                            onException(ie);
+                        } finally {
+                            _finally();
+                        }
+                    } catch (Exception ex) {
+                        serve500(ex);
                     }
                 });
 
-            } catch (Suspend e) {
-                suspend(e);
-                after();
             } catch (Throwable e) {
                 onException(e);
             } finally {
                 _finally();
             }
         }
+
+        protected void serve500(Exception e) {
+	        Http.Request request = context.getRequest();
+	        String requestStr = request == null ? "[missing request]" : (request.method + " " + request.url);
+
+            Logger.error(e, "Internal Server Error (500) for request %s", requestStr);
+        }
     }
+
 
     /**
      * A direct invocation (in the same thread as caller)
@@ -358,7 +331,7 @@ public class Invoker {
 
         public static final String invocationType = "DirectInvocation";
 
-        Suspend retry = null;
+        Object retry = null;
 
         public DirectInvocation(Context context) {
             super(context);
@@ -368,11 +341,6 @@ public class Invoker {
         public boolean init() {
             retry = null;
             return super.init();
-        }
-
-        @Override
-        public void suspend(Suspend suspendRequest) {
-            retry = suspendRequest;
         }
 
         @Override
@@ -392,9 +360,17 @@ public class Invoker {
 
     public static class AsyncRequest extends PlayException {
         private final Promise<?> task;
+        private final F.Action<?> callback;
 
-        public AsyncRequest(Promise<?> task) {
+        public AsyncRequest(Promise<?> task, F.Action<?> callback) {
             this.task = task;
+            this.callback = callback;
+        }
+
+        public AsyncRequest(Promise<?> task, Throwable cause) {
+            super(null, cause);
+            this.task = task;
+            this.callback = ignore -> {};
         }
 
         @Override
@@ -410,91 +386,9 @@ public class Invoker {
         public Promise<?> getTask() {
             return task;
         }
-    }
 
-    /**
-     * Throwable to indicate that the request must be suspended
-     */
-    public static class Suspend extends PlayException {
-
-        /**
-         * Suspend for a timeout (in milliseconds).
-         */
-        long timeout;
-
-        /**
-         * Wait for task execution.
-         */
-        Future<?> task;
-
-        public Suspend(long timeout) {
-            this.timeout = timeout;
-        }
-
-        public Suspend(Future<?> task) {
-            this.task = task;
-        }
-
-        @Override
-        public String getErrorTitle() {
-            return "Request is suspended";
-        }
-
-        @Override
-        public String getErrorDescription() {
-            if (task != null) {
-                return "Wait for " + task;
-            }
-            return "Retry in " + timeout + " ms.";
-        }
-    }
-
-    /**
-     * Utility that track tasks completion in order to resume suspended requests.
-     */
-    static class WaitForTasksCompletion extends Thread {
-
-        static WaitForTasksCompletion instance;
-        final Map<Future<?>, Invocation> queue = new ConcurrentHashMap<>();
-
-        public WaitForTasksCompletion() {
-            setName("WaitForTasksCompletion");
-            setDaemon(true);
-        }
-
-        public static <V> void waitFor(Future<V> task, final Invocation invocation) {
-            if (task instanceof Promise) {
-                Promise<V> smartFuture = (Promise<V>) task;
-                smartFuture.onRedeem(result -> executor.submit(invocation));
-            } else {
-                synchronized (WaitForTasksCompletion.class) {
-                    if (instance == null) {
-                        instance = new WaitForTasksCompletion();
-                        Logger.warn("Start WaitForTasksCompletion");
-                        instance.start();
-                    }
-                    instance.queue.put(task, invocation);
-                }
-            }
-        }
-
-        @Override
-        public void run() {
-            while (true) {
-                try {
-                    if (!queue.isEmpty()) {
-                        for (Future<?> task : new HashSet<>(queue.keySet())) {
-                            if (task.isDone()) {
-                                executor.submit(queue.get(task));
-                                queue.remove(task);
-                            }
-                        }
-                    }
-                    Thread.sleep(50);
-                } catch (InterruptedException ex) {
-                    Logger.warn(ex, "While waiting for task completions");
-                }
-            }
+        public F.Action<?> getCallback() {
+            return callback;
         }
     }
 }

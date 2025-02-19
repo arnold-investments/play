@@ -507,14 +507,14 @@ public class GroovyTemplate extends BaseTemplate {
                         + "have you forgotten quotes around the message-key?");
             }
             if (val.length == 1) {
-                return Messages.get(context.getLocaleStr(), val[0]);
+                return Messages.get(context, val[0]);
             } else {
                 // extract args from val
                 Object[] args = new Object[val.length - 1];
                 for (int i = 1; i < val.length; i++) {
                     args[i - 1] = val[i];
                 }
-                return Messages.get(context.getLocaleStr(), val[0], args);
+                return Messages.get(context, val[0], args);
             }
         }
 

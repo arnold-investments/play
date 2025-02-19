@@ -4,6 +4,7 @@ package play.mvc;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Stack;
+import play.Invoker;
 import play.data.binding.CachedBoundActionMethodArgs;
 import play.data.validation.Validation;
 
@@ -25,6 +26,8 @@ public class Context {
 	private String localeStr;
 
 	private Locale locale;
+
+	private Invoker.InvocationContext invocationContext;
 
 	public Context(Http.Request request, Http.Response response) {
 		this(request, response, null, null);
@@ -146,5 +149,11 @@ public class Context {
 		this.localeStr = localeStr;
 	}
 
+	public Invoker.InvocationContext getInvocationContext() {
+		return invocationContext;
+	}
 
+	public void setInvocationContext(Invoker.InvocationContext invocationContext) {
+		this.invocationContext = invocationContext;
+	}
 }
