@@ -1,16 +1,11 @@
 package play;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-
+import com.google.gson.JsonObject;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-
-import com.google.gson.JsonObject;
-
 import play.classloading.ApplicationClasses.ApplicationClass;
 import play.data.binding.RootParamNode;
 import play.db.Model;
@@ -25,6 +20,9 @@ import play.templates.Template;
 import play.test.BaseTest;
 import play.test.TestEngine.TestResults;
 import play.vfs.VirtualFile;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * A framework plugin
@@ -204,7 +202,8 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
     /**
      * Give a chance to this plugin to fully manage this request
      *
-     * @param context@return true if this plugin has managed this request
+     * @param context context of this request
+     * @return true if this plugin has managed this request
      * @throws java.lang.Exception if the plugin cannot enhance the class
      */
     public boolean rawInvocation(Context context) throws Exception {
@@ -328,7 +327,7 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
     /**
      * Called at the end of the action invocation.
      */
-    public void afterActionInvocation() {
+    public void afterActionInvocation(Context context) {
     }
 
     /**
@@ -510,7 +509,7 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
             this.name = name;
         }
 
-        public abstract T withinFilter(play.libs.F.Function0<T> fct) throws Throwable;
+        public abstract T withinFilter(Context context, F.Function0<T> fct) throws Throwable;
 
         /**
          * Surround innerFilter with this. (innerFilter after this)
@@ -524,8 +523,8 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
             final Filter<T> outerFilter = this;
             return new Filter<T>(this.name) {
                 @Override
-                public T withinFilter(F.Function0<T> fct) throws Throwable {
-                    return compose(outerFilter.asFunction(), innerFilter.asFunction()).apply(fct);
+                public T withinFilter(Context context, F.Function0<T> fct) throws Throwable {
+                    return Filter.compose(outerFilter::withinFilter, innerFilter::withinFilter).apply(context, fct);
                 }
             };
         }
@@ -539,26 +538,19 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
          *            Function to be wrapped by outer function -- ("outer after inner")
          * @return A function that computes outer(inner(x)) on application.
          */
-        private static <T> Function1<F.Function0<T>, T> compose(final Function1<F.Function0<T>, T> outer,
-                final Function1<F.Function0<T>, T> inner) {
-
-            return arg -> outer.apply(() -> inner.apply(arg));
-        }
-
-        private final Function1<play.libs.F.Function0<T>, T> _asFunction = this::withinFilter;
-
-        public Function1<play.libs.F.Function0<T>, T> asFunction() {
-            return _asFunction;
+        private static <T> Function2<T> compose(
+            final Function2<T> outer,
+            final Function2<T> inner
+        ) {
+            return (context, arg) -> outer.apply(context, () -> inner.apply(context, arg));
         }
 
         public String getName() {
             return name;
         }
 
-        // I don't want to add any additional dependencies to the project or use JDK 8 features
-        // so I'm just rolling my own 1 arg function interface... there must be a better way to do this...
-        public static interface Function1<I, O> {
-            public O apply(I arg) throws Throwable;
+        private interface Function2<T> {
+            T apply(Context t, F.Function0<T> u) throws Throwable;
         }
     }
 

@@ -38,7 +38,7 @@ public class PlayJUnitRunner extends Runner implements Filterable {
                 Play.javaPath.add(Play.getVirtualFile("test"));
                 // Assure that Play is not start (start can be called in the Play.init method)
                 if (!Play.started) {
-                    Play.start(null); // FIXME: might need to pass the context
+                    Play.start(new Context(null, null));
                 }
                 useCustomRunner = true;
             }

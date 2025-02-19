@@ -335,7 +335,7 @@ public class Play {
         // Done !
         if (mode == Mode.PROD) {
             if (preCompile() && System.getProperty("precompile") == null) {
-                start(null);
+                start(new Context(null, null));
             } else {
                 return;
             }
@@ -495,7 +495,7 @@ public class Play {
                     // our plugins that we're going down when some calls ctrl+c or just kills our
                     // process...
                     shutdownHookEnabled = true;
-                    Thread hook = new Thread(() -> stop(null)); // FIXME: might need to pass new context
+                    Thread hook = new Thread(() -> stop(new Context(null, null)));
                     hook.setContextClassLoader(ClassLoader.getSystemClassLoader());
                     Runtime.getRuntime().addShutdownHook(hook);
                 }
@@ -685,15 +685,12 @@ public class Play {
                 }
 
 	            List<WatchEvent<?>> events = watchKey.pollEvents();
+                watchKey.reset();
 
                 WatchCallback callback = watchServiceCallbacks.get(watchKey);
 
-                try {
-                    if (callback != null) {
-                        callback.accept(watchKey, events);
-                    }
-                } finally {
-                    watchKey.reset();
+                if (callback != null) {
+                    callback.accept(watchKey, events);
                 }
             }
         } catch(InterruptedException ex) {
@@ -744,10 +741,10 @@ public class Play {
                     Logger.info("Restart: " + e.getMessage());
                 }
             }
-            start(null); // FIXME: might need to pass the context
+            start(new Context(null, null));
         } catch (Exception e) {
             Logger.error(e, "Restart: " + e.getMessage());
-            start(null); // FIXME: might need to pass the context
+            start(new Context(null, null));
         }
     }
 

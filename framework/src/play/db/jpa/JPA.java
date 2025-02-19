@@ -1,8 +1,10 @@
 package play.db.jpa;
 
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.util.function.Supplier;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
@@ -11,12 +13,12 @@ import javax.persistence.PersistenceException;
 import javax.persistence.PersistenceUnit;
 
 import play.Invoker.InvocationContext;
-import play.Invoker.Suspend;
 import play.Logger;
 import play.Play;
 import play.db.DB;
 import play.exceptions.JPAException;
 import play.libs.F;
+import play.mvc.Context;
 
 /**
  * JPA Support
@@ -212,8 +214,8 @@ public class JPA {
         return jpaContext != null && jpaContext.entityManager != null && jpaContext.entityManager.getTransaction() != null;
     }
 
-    public static <T> T withinFilter(F.Function0<T> block) throws Throwable {
-        if (InvocationContext.current().getAnnotation(NoTransaction.class) != null) {
+    public static <T> T withinFilter(Context context, F.Function0<T> block) throws Throwable {
+        if (context.getInvocationContext().getAnnotation(NoTransaction.class) != null) {
             // Called method or class is annotated with @NoTransaction telling us that
             // we should not start a transaction
             return block.apply();
@@ -221,11 +223,11 @@ public class JPA {
 
         boolean readOnly = false;
         String name = DEFAULT;
-        Transactional tx = InvocationContext.current().getAnnotation(Transactional.class);
+        Transactional tx = context.getInvocationContext().getAnnotation(Transactional.class);
         if (tx != null) {
             readOnly = tx.readOnly();
         }
-        PersistenceUnit pu = InvocationContext.current().getAnnotation(PersistenceUnit.class);
+        PersistenceUnit pu = context.getInvocationContext().getAnnotation(PersistenceUnit.class);
         if (pu != null) {
             name = pu.name();
         }
@@ -261,7 +263,6 @@ public class JPA {
      */
     public static <T> T withTransaction(String dbName, boolean readOnly, F.Function0<T> block) throws Throwable {
         if (isEnabled()) {
-            boolean closeEm = true;
             // For each existing persistence unit
 
             try {
@@ -307,10 +308,6 @@ public class JPA {
                 }
 
                 return result;
-            } catch (Suspend e) {
-                // Nothing, transaction is in progress
-                closeEm = false;
-                throw e;
             } catch (Throwable t) {
                 // Because people might have mess up with the current entity managers
                 for (JPAContext jpaContext : get().values()) {
@@ -327,18 +324,16 @@ public class JPA {
 
                 throw t;
             } finally {
-                if (closeEm) {
-                    for (JPAContext jpaContext : get().values()) {
-                        EntityManager localEm = jpaContext.entityManager;
-                        if (localEm.isOpen()) {
-                            localEm.close();
-                        }
-                        JPA.clearContext(jpaContext.dbName);
-                    }
-                    for (String name : emfs.keySet()) {
-                        JPA.unbindForCurrentThread(name);
-                    }
-                }
+	            for (JPAContext jpaContext : get().values()) {
+		            EntityManager localEm = jpaContext.entityManager;
+		            if (localEm.isOpen()) {
+			            localEm.close();
+		            }
+		            JPA.clearContext(jpaContext.dbName);
+	            }
+	            for (String name : emfs.keySet()) {
+	                JPA.unbindForCurrentThread(name);
+	            }
             }
         } else {
             return block.apply();

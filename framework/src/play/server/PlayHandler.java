@@ -118,7 +118,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 response.onWriteChunk(result -> writeChunk(request, response, ctx, nettyRequest, result));
 
                 // Raw invocation
-                boolean raw = Play.pluginCollection.rawInvocation(context);
+                boolean raw = Play.pluginCollection.rawInvocation(new Context(request, response));
                 if (raw) {
                     copyResponse(ctx, request, response, nettyRequest);
                 } else {
@@ -148,13 +148,13 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
 
     public class NettyInvocation extends Invoker.Invocation {
 
-        private final ChannelHandlerContext ctx;
+        protected final ChannelHandlerContext ctx;
 
-        private final HttpRequest nettyRequest;
+        protected final HttpRequest nettyRequest;
         private final MessageEvent event;
 
-        private Request request;
-        private Response response;
+        private final Request request;
+        private final Response response;
 
 
         public NettyInvocation(Context context, Request request, Response response, ChannelHandlerContext ctx, HttpRequest nettyRequest,
@@ -181,8 +181,13 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
             context.clear();
 
             try {
-                if (Play.mode == Play.Mode.DEV) {
+                if (Play.mode == Play.Mode.DEV) { // FIXME: should not need to check routes file on every request
                     Router.detectChanges(Play.ctxPath);
+
+                    // JB: Prevent static request being served in dev before plugins are ready
+                    if (!Play.started) {
+                        Play.start(context);
+                    }
                 }
                 if (Play.mode == Play.Mode.PROD
                         && staticPathsCache.containsKey(request.domain + " " + request.method + " " + request.path)) {
@@ -241,11 +246,16 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 }
                 super.run();
             } catch (Exception e) {
-                serve500(e, ctx, context, nettyRequest);
+                PlayHandler.serve500(e, ctx, context, nettyRequest);
             }
             if (Logger.isTraceEnabled()) {
                 Logger.trace("run: end");
             }
+        }
+
+        @Override
+        protected void serve500(Exception e) {
+            PlayHandler.serve500(e, ctx, context, nettyRequest);
         }
 
         @Override
@@ -307,7 +317,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 } catch (Exception e) {
                     size = length + " bytes";
                 }
-                error.append(Messages.get(context.getLocaleStr(), warning, size));
+                error.append(Messages.get(context, warning, size));
                 error.append("\u0001");
                 error.append(size);
                 error.append("\u0000");
@@ -530,15 +540,6 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
 
         String contentType = nettyRequest.headers().get(CONTENT_TYPE);
 
-        // need to get the encoding now - before the Http.Request is created
-        String encoding = Play.defaultWebEncoding;
-        if (contentType != null) {
-            HTTP.ContentTypeWithEncoding contentTypeEncoding = HTTP.parseContentType(contentType);
-            if (contentTypeEncoding.encoding != null) {
-                encoding = contentTypeEncoding.encoding;
-            }
-        }
-
         int i = uri.indexOf('?');
         String querystring = "";
         String path = uri;
@@ -555,7 +556,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
             method = nettyRequest.headers().get(X_HTTP_METHOD_OVERRIDE).intern();
         }
 
-        InputStream body = null;
+        InputStream body;
         ChannelBuffer b = nettyRequest.getContent();
         if (b instanceof FileChannelBuffer) {
             FileChannelBuffer buffer = (FileChannelBuffer) b;
@@ -730,7 +731,6 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         return binding;
     }
 
-    // TODO: add request and response as parameter
     public static void serve500(Exception e, ChannelHandlerContext ctx, Context context, HttpRequest nettyRequest) {
         if (Logger.isTraceEnabled()) {
             Logger.trace("serve500: begin");
@@ -1163,7 +1163,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
             }
         };
 
-        Context context = new Context(null, inbound, outbound);
+        Context context = new Context(request, inbound, outbound);
 
         Logger.trace("invoking");
 

@@ -1,10 +1,15 @@
 package play.data.validation;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import net.sf.oval.Check;
 import net.sf.oval.ConstraintViolation;
 import net.sf.oval.Validator;
+import net.sf.oval.configuration.CheckInitializationListener;
+import net.sf.oval.configuration.Configurer;
 import net.sf.oval.configuration.annotation.AbstractAnnotationCheck;
+import net.sf.oval.configuration.annotation.AnnotationsConfigurer;
 import net.sf.oval.context.FieldContext;
 import net.sf.oval.context.MethodParameterContext;
 import net.sf.oval.context.OValContext;
@@ -13,10 +18,19 @@ import play.mvc.Context;
 import play.utils.Java;
 
 @SuppressWarnings("serial")
-public class ValidCheck extends AbstractAnnotationCheck<Required> {
-    private final Context context;
+public class ValidCheck extends AbstractAnnotationCheck<Required> implements NeedContext {
+
+    private Context context;
 
     public ValidCheck(Context context) {
+        this.context = context;
+    }
+
+    public ValidCheck() {
+    }
+
+    @Override
+    public void setContext(Context context) {
         this.context = context;
     }
 
@@ -28,8 +42,6 @@ public class ValidCheck extends AbstractAnnotationCheck<Required> {
         if (value == null) {
             return true;
         }
-
-
 
         try {
             if (oValContext != null) {
@@ -56,7 +68,7 @@ public class ValidCheck extends AbstractAnnotationCheck<Required> {
 	        boolean everythingIsValid = true;
             int index = 0;
             for(Object item : valueCollection) {
-                if(!validateObject(key + "[" + (index) + "]", item)) {
+                if(!validateObject(key + "[" + (index) + "]", item, validator)) {
                     context.getValidation().errors.add(new Error(context, key + "[" + (index) + "]", mes, new String[0]));
                     everythingIsValid = false;
                 }
@@ -64,13 +76,26 @@ public class ValidCheck extends AbstractAnnotationCheck<Required> {
             }
             return everythingIsValid;
         } else {
-            return validateObject(key, value);
+            return validateObject(key, value, validator);
         }
     }
 
-    boolean validateObject(String key, Object value) {
+    private boolean validateObject(String key, Object value, Validator validator) {
         context.getValidation().keys.put(value, key);
-        List<ConstraintViolation> violations = new Validator().validate(value);
+
+        if (validator == null) {
+            validator = new Validator();
+            NeedContextListener listener = new NeedContextListener(context);
+
+            for (Configurer configurer : validator.getConfigurers()) {
+                if (configurer instanceof AnnotationsConfigurer annotationsConfigurer) {
+                    annotationsConfigurer.addCheckInitializationListener(listener);
+                }
+            }
+        }
+
+        List<ConstraintViolation> violations = validator.validate(value);
+
         //
         if (violations.isEmpty()) {
             return true;
@@ -80,13 +105,13 @@ public class ValidCheck extends AbstractAnnotationCheck<Required> {
                     FieldContext ctx = (FieldContext) violation.getContext();
                     String fkey = (key == null ? "" : key + ".") + ctx.getField().getName();
                     Error error = new Error(
-                            context,
-                            fkey,
-                            violation.getMessage(),
-                            violation.getMessageVariables() == null ? new String[0]
-                                    : violation.getMessageVariables().values()
-                                            .toArray(new String[0]),
-                            violation.getSeverity());
+                        context,
+                        fkey,
+                        violation.getMessage(),
+                        violation.getMessageVariables() == null ? new String[0]
+                            : violation.getMessageVariables().values()
+                            .toArray(new String[0]),
+                        violation.getSeverity());
                     context.getValidation().errors.add(error);
                 }
             }

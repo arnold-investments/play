@@ -3,8 +3,8 @@ package play.libs;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Iterator;
+import java.util.List;
 import java.util.ListIterator;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -17,15 +17,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.jboss.netty.channel.ChannelHandlerContext;
-
 import play.Logger;
 
 public class F {
     /**
      * A Function with no arguments.
      */
-    public static interface Function0<R> {
-        public R apply() throws Throwable;
+    public interface Function0<R> {
+        R apply() throws Throwable;
     }
 
     public static class Promise<V> implements Future<V>, F.Action<V> {
@@ -682,12 +681,12 @@ public class F {
         }
     }
 
-    public static interface Action0 {
+    public interface Action0 {
 
         void invoke();
     }
 
-    public static interface Action<T> {
+    public interface Action<T> {
 
         void invoke(T result);
     }
@@ -699,7 +698,7 @@ public class F {
         public abstract T get();
 
         public static <T> None<T> None() {
-            return (None<T>) (Object) None;
+            return (None<T>) None;
         }
 
         public static <T> Some<T> Some(T value) {
@@ -708,7 +707,7 @@ public class F {
     }
 
     public static <A> Some<A> Some(A a) {
-        return new Some<A>(a);
+        return new Some<>(a);
     }
 
     public static class None<T> extends Option<T> {

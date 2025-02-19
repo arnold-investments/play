@@ -17,15 +17,23 @@ import play.exceptions.UnexpectedException;
 import play.libs.I18N;
 
 @SuppressWarnings("serial")
-public class InFutureCheck extends AbstractAnnotationCheck<InFuture> {
+public class InFutureCheck extends AbstractAnnotationCheck<InFuture> implements NeedContext {
 
     static final String mes = "validation.future";
 
     Date reference;
 
-    private final Context context;
+    private Context context;
 
     public InFutureCheck(Context context) {
+        this.context = context;
+    }
+    
+    public InFutureCheck() {
+    }
+
+    @Override
+    public void setContext(Context context) {
         this.context = context;
     }
 

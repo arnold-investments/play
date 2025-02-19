@@ -54,8 +54,8 @@ public class Messages {
      *            optional message format arguments
      * @return translated message
      */
-    public static String get(String locale, Object key, Object... args) {
-        return getMessage(locale, key, args);
+    public static String get(Context context, Object key, Object... args) {
+        return getMessage(Lang.get(context), key, args);
     }
 
     public String get(Object key, Object... args) {
@@ -131,7 +131,7 @@ public class Messages {
         Matcher matcher = recursive.matcher(message);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
-            matcher.appendReplacement(sb, get(locale.toString(), matcher.group(1)));
+            matcher.appendReplacement(sb, getMessage(locale.toString(), matcher.group(1)));
         }
 
         matcher.appendTail(sb);

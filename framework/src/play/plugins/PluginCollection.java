@@ -733,9 +733,9 @@ public class PluginCollection {
         }
     }
 
-    public void afterActionInvocation() {
+    public void afterActionInvocation(Context context) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
-            plugin.afterActionInvocation();
+            plugin.afterActionInvocation(context);
         }
     }
 

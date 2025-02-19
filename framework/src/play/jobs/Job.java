@@ -89,15 +89,15 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
     /**
      * If is called in a 'HttpRequest' invocation context, waits until request is served and schedules job then.
      *
-     * Otherwise is the same as now();
+     * Otherwise, is the same as now();
      *
-     * If you want to schedule a job to run after some other job completes, wait till a promise redeems of just override
+     * If you want to schedule a job to run after some other job completes, wait till a promise redeems or just override
      * first Job's call() to schedule the second one.
      *
      * @return the job completion
      */
     public Promise<V> afterRequest(Http.Request request) {
-        InvocationContext current = Invoker.InvocationContext.current();
+        InvocationContext current = context.getInvocationContext();
         if (current == null || !Http.invocationType.equals(current.getInvocationType())) {
             return now();
         }
@@ -200,7 +200,7 @@ public class Job<V> extends Invoker.Invocation implements Callable<V> {
         if (!filters.isDefined()) {
             return null;
         } else {
-            return filters.get().withinFilter(fct);
+            return filters.get().withinFilter(context, fct);
         }
     }
 

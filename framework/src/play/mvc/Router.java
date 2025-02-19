@@ -1,5 +1,16 @@
 package play.mvc;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import jregex.Matcher;
 import jregex.Pattern;
 import jregex.REFlags;
@@ -11,17 +22,8 @@ import play.exceptions.NoRouteFoundException;
 import play.mvc.results.NotFound;
 import play.mvc.results.RenderStatic;
 import play.templates.TemplateLoader;
-import play.utils.Default;
 import play.utils.Utils;
 import play.vfs.VirtualFile;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The router matches HTTP requests to action invocations
@@ -639,8 +641,6 @@ public class Router {
                                 } catch (UnsupportedEncodingException ex) {
                                 }
                             }
-                        } else if (value.getClass().equals(Default.class)) {
-                            // Skip defaults in queryString
                         } else {
                             try {
                                 queryString.append(URLEncoder.encode(key, encoding));

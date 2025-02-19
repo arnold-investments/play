@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import play.Invoker;
 import play.Logger;
 import play.Play;
@@ -28,6 +29,7 @@ import play.exceptions.JavaExecutionException;
 import play.exceptions.PlayException;
 import play.exceptions.UnexpectedException;
 import play.inject.Injector;
+import play.libs.F;
 import play.mvc.Http.Request;
 import play.mvc.Router.Route;
 import play.mvc.results.NoResult;
@@ -107,7 +109,7 @@ public class ActionInvoker {
 
             result.apply(context);
 
-            Play.pluginCollection.afterActionInvocation();
+            Play.pluginCollection.afterActionInvocation(context);
 
             // @Finally
             handleFinallies(context, null);
@@ -116,17 +118,46 @@ public class ActionInvoker {
             throw e;
         } catch (Invoker.AsyncRequest e) {
             skipFinally = true;
+
+
+            F.Promise<?> chainedPromise = new F.Promise<>();
             e.getTask().onRedeem(p -> {
-                _invoke(context, (ignore1,ignore2) -> {
-	                Throwable throwable = p.getException();
-                    if (throwable instanceof Exception exception) {
-                        throw exception;
-                    } else if (throwable != null){
-                        throw new ExecutionException(throwable);
+                Throwable throwable = null;
+
+                try {
+                    final AtomicBoolean executed = new AtomicBoolean(false);
+                    Invoker.Invocation.withinFilter(context, () -> {
+                        executed.set(true);
+                        ((F.Action<Object>)e.getCallback()).invoke(p.getOrNull());
+                        return null;
+                    });
+                    // No filter function found => we need to execute anyway( as before the use of withinFilter )
+                    if (!executed.get()) {
+                        ((F.Action<Object>)e.getCallback()).invoke(p.getOrNull());
                     }
-                }, (ignore1) -> ctx.monitor);
+
+                } catch (Throwable t) {
+                    throwable = t;
+                } finally {
+                    Throwable innerThrowable = null;
+                    try {
+                        final Throwable finalThrowable = throwable;
+                        _invoke(context, (ignore1, ignore2) -> {
+                            if (finalThrowable instanceof Exception exception) {
+                                throw exception;
+                            } else if (finalThrowable != null) {
+                                throw new ExecutionException(finalThrowable);
+                            }
+                        }, (ignore1) -> ctx.monitor);
+                    } catch(Throwable tx) {
+                        innerThrowable = tx;
+                    } finally {
+                        chainedPromise.invokeWithException(innerThrowable);
+                    }
+                }
             });
-            throw e;
+
+            throw new Invoker.AsyncRequest(chainedPromise, e);
         } catch (PlayException e) {
             handleFinallies(context, e);
             throw e;
@@ -476,7 +507,7 @@ public class ActionInvoker {
                 ? request.controllerInstance
                 : Injector.getBeanOfType(method.getDeclaringClass());
 
-        if (methodClassInstance instanceof Controller controller) {
+        if (methodClassInstance instanceof PlayController controller) {
             controller.setContext(context);
         }
 
@@ -502,8 +533,8 @@ public class ActionInvoker {
     }
 
     public static Object[] getActionMethod(String fullAction) {
-        Method actionMethod = null;
-        Class controllerClass = null;
+        Method actionMethod;
+        Class<?> controllerClass;
         try {
             if (!fullAction.startsWith("controllers.")) {
                 fullAction = "controllers." + fullAction;
@@ -511,18 +542,18 @@ public class ActionInvoker {
             String controller = fullAction.substring(0, fullAction.lastIndexOf('.'));
             String action = fullAction.substring(fullAction.lastIndexOf('.') + 1);
             controllerClass = Play.classloader.getClassIgnoreCase(controller);
+
             if (controllerClass == null) {
                 throw new ActionNotFoundException(fullAction, new Exception("Controller " + controller + " not found"));
             }
+
             if (!PlayController.class.isAssignableFrom(controllerClass)) {
-                // Try the scala way
-                controllerClass = Play.classloader.getClassIgnoreCase(controller + "$");
-                if (!PlayController.class.isAssignableFrom(controllerClass)) {
-                    throw new ActionNotFoundException(fullAction,
-                            new Exception("class " + controller + " does not extend play.mvc.Controller"));
-                }
+                throw new ActionNotFoundException(fullAction,
+                        new Exception("class " + controller + " does not extend play.mvc.Controller"));
             }
+
             actionMethod = findActionMethod(action, controllerClass);
+
             if (actionMethod == null) {
                 throw new ActionNotFoundException(fullAction,
                         new Exception("No method public static void " + action + "() was found in class " + controller));
@@ -532,14 +563,12 @@ public class ActionInvoker {
         } catch (Exception e) {
             throw new ActionNotFoundException(fullAction, e);
         }
+
         return new Object[] { controllerClass, actionMethod };
     }
 
     public static Object[] getActionMethodArgs(Context context, Method method, Object o) throws Exception {
         String[] paramsNames = Java.parameterNames(method);
-        if (paramsNames == null && method.getParameterTypes().length > 0) {
-            throw new UnexpectedException("Parameter names not found for method " + method);
-        }
 
         // Check if we have already performed the bind operation
         Object[] rArgs = context.getCachedBoundActionMethodArgs().retrieveActionMethodArgs(method);

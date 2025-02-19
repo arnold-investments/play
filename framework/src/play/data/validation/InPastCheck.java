@@ -14,16 +14,25 @@ import play.exceptions.UnexpectedException;
 import play.libs.I18N;
 
 @SuppressWarnings("serial")
-public class InPastCheck extends AbstractAnnotationCheck<InPast> {
+public class InPastCheck extends AbstractAnnotationCheck<InPast> implements NeedContext {
 
     static final String mes = "validation.past";
     Date reference;
 
-    private final Context context;
+    private Context context;
 
     public InPastCheck(Context context) {
         this.context = context;
     }
+
+    public InPastCheck() {
+    }
+
+    @Override
+    public void setContext(Context context) {
+        this.context = context;
+    }
+
 
     @Override
     public void configure(InPast past) {
