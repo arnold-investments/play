@@ -1,20 +1,5 @@
 package play.server;
 
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.handler.codec.http.*;
-import org.jboss.netty.handler.stream.ChunkedFile;
-import org.jboss.netty.handler.stream.ChunkedInput;
-
-import play.Logger;
-import play.exceptions.UnexpectedException;
-import play.libs.MimeTypes;
-import play.mvc.Context;
-import play.mvc.Http.Request;
-import play.mvc.Http.Response;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -22,6 +7,22 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.HttpResponse;
+import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import org.jboss.netty.handler.codec.http.HttpVersion;
+import org.jboss.netty.handler.stream.ChunkedFile;
+import org.jboss.netty.handler.stream.ChunkedInput;
+import play.Logger;
+import play.exceptions.UnexpectedException;
+import play.libs.MimeTypes;
+import play.mvc.Http.Response;
 
 import static org.apache.commons.io.IOUtils.closeQuietly;
 import static org.jboss.netty.buffer.ChannelBuffers.wrappedBuffer;
@@ -29,8 +30,7 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 
 public class FileService  {
 
-    public static void serve(File localFile, HttpRequest nettyRequest, HttpResponse nettyResponse, ChannelHandlerContext ctx, Context context, Channel channel) throws FileNotFoundException {
-        Response response = context.getResponse();
+    public static void serve(File localFile, HttpRequest nettyRequest, HttpResponse nettyResponse, ChannelHandlerContext ctx, Response response, Channel channel) throws FileNotFoundException {
         RandomAccessFile raf = new RandomAccessFile(localFile, "r");
 
         try {
@@ -40,7 +40,7 @@ public class FileService  {
             
             if(Logger.isTraceEnabled()) {
                 Logger.trace("keep alive %s", String.valueOf(isKeepAlive));
-                Logger.trace("content type %s", (response.contentType != null ? response.contentType : MimeTypes.getContentType(context, localFile.getName(), "text/plain")));
+                Logger.trace("content type %s", (response.contentType != null ? response.contentType : MimeTypes.getContentType(response, localFile.getName(), "text/plain")));
             }
             
             if (!nettyResponse.getStatus().equals(HttpResponseStatus.NOT_MODIFIED)) {
@@ -54,7 +54,7 @@ public class FileService  {
             if (response.contentType != null) {
                 nettyResponse.headers().set(CONTENT_TYPE, response.contentType);
             } else {
-                nettyResponse.headers().set(CONTENT_TYPE, MimeTypes.getContentType(context, localFile.getName(), "text/plain"));
+                nettyResponse.headers().set(CONTENT_TYPE, MimeTypes.getContentType(response, localFile.getName(), "text/plain"));
             }
 
             nettyResponse.headers().set(HttpHeaders.Names.ACCEPT_RANGES, HttpHeaders.Values.BYTES);
@@ -64,7 +64,7 @@ public class FileService  {
 
             // Write the content.
             if (!nettyRequest.getMethod().equals(HttpMethod.HEAD)) {
-                ChunkedInput chunkedInput = getChunckedInput(raf, MimeTypes.getContentType(context, localFile.getName(), "text/plain"), channel, nettyRequest, nettyResponse);
+                ChunkedInput chunkedInput = getChunckedInput(raf, MimeTypes.getContentType(response, localFile.getName(), "text/plain"), channel, nettyRequest, nettyResponse);
                 if (channel.isOpen()) {
                     channel.write(nettyResponse);
                     writeFuture = channel.write(chunkedInput);

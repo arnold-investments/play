@@ -38,7 +38,7 @@ public class NotFound extends Result {
         if(request.isAjax() && "html".equals(format)) {
             format = "txt";
         }
-        response.contentType = MimeTypes.getContentType(context, "xx."+format);
+        response.contentType = MimeTypes.getContentType(context.getResponse(), "xx."+format);
         Map<String, Object> binding = context.getRenderArgs().data;
         binding.put("result", this);
         binding.put("session", context.getSession());

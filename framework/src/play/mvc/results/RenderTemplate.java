@@ -36,7 +36,7 @@ public class RenderTemplate extends Result {
         try {
             Http.Response response = context.getResponse();
 
-            String contentType = MimeTypes.getContentType(context, name, "text/plain");
+            String contentType = MimeTypes.getContentType(response, name, "text/plain");
             response.out.write(content.getBytes(getEncoding(response)));
             setContentTypeIfNotSet(response, contentType);
         } catch (Exception e) {

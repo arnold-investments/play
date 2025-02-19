@@ -1,19 +1,73 @@
 package play.data.validation;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.sf.oval.ConstraintViolation;
+import net.sf.oval.context.MethodParameterContext;
+import net.sf.oval.guard.Guard;
 import play.PlayPlugin;
+import play.exceptions.ActionNotFoundException;
 import play.exceptions.UnexpectedException;
+import play.mvc.ActionInvoker;
 import play.mvc.Context;
 import play.mvc.Http;
 import play.mvc.Http.Cookie;
 import play.mvc.Scope;
 import play.mvc.results.Result;
+import play.utils.Java;
 
 public class ValidationPlugin extends PlayPlugin {
+    @Override
+    public void beforeInvocation(Context context) {
+        context.setValidation(new Validation());
+    }
+
+    @Override
+    public void beforeActionInvocation(Context context) {
+        try {
+            context.setValidation(restore(context));
+
+            boolean verify = false;
+            for (Annotation[] annotations : context.getActionMethod().getParameterAnnotations()) {
+                if (annotations.length > 0) {
+                    verify = true;
+                    break;
+                }
+            }
+
+            if (!verify) {
+                return;
+            }
+
+            List<ConstraintViolation> violations = new Validator().validateAction(context);
+            ArrayList<Error> errors = new ArrayList<>();
+            String[] paramNames = Java.parameterNames(context.getActionMethod());
+            for (ConstraintViolation violation : violations) {
+                errors.add(new Error(
+                    context,
+                    paramNames[((MethodParameterContext) violation.getContext()).getParameterIndex()],
+                    violation.getMessage(),
+                    violation.getMessageVariables() == null
+                        ? new String[0]
+                        : violation.getMessageVariables().values().toArray(new String[0]),
+                    violation.getSeverity()
+                ));
+            }
+
+            context.getValidation().errors.addAll(errors);
+        } catch (Exception e) {
+            throw new UnexpectedException(e);
+        }
+    }
+
     @Override
     public void onActionInvocationResult(Context context, Result result) {
         save(context);
@@ -24,7 +78,28 @@ public class ValidationPlugin extends PlayPlugin {
         clear(context.getResponse());
     }
 
+    // ~~~~~~
+    static class Validator extends Guard {
 
+        public List<ConstraintViolation> validateAction(Context context) throws Exception {
+	        Method actionMethod = context.getActionMethod();
+
+            List<ConstraintViolation> violations = new ArrayList<>();
+            Object instance = null;
+            // Patch for scala defaults
+            if (!Modifier.isStatic(actionMethod.getModifiers()) && actionMethod.getDeclaringClass().getSimpleName().endsWith("$")) {
+                try {
+                    instance = actionMethod.getDeclaringClass().getDeclaredField("MODULE$").get(null);
+                } catch (Exception e) {
+                    throw new ActionNotFoundException(context.getRequest().action, e);
+                }
+            }
+            Object[] rArgs = ActionInvoker.getActionMethodArgs(context, actionMethod, instance);
+            validateMethodParameters(null, actionMethod, rArgs, violations);
+            validateMethodPre(null, actionMethod, rArgs, violations);
+            return violations;
+        }
+    }
     static final Pattern errorsParser = Pattern.compile("\u0000([^:]*):([^\u0000]*)\u0000");
 
     static Validation restore(Context context) {

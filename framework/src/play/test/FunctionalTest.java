@@ -357,7 +357,7 @@ public abstract class FunctionalTest extends BaseTest {
 
             @Override
             public InvocationContext getInvocationContext() {
-                ActionInvoker.resolve(request);
+                ActionInvoker.resolve(context, request);
                 return new InvocationContext(Http.invocationType, request.invokedMethod.getAnnotations(),
                         request.invokedMethod.getDeclaringClass().getAnnotations());
             }

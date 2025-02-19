@@ -39,8 +39,6 @@ public class Context {
 		this.response = response;
 		this.inbound = inbound;
 		this.outbound = outbound;
-
-		this.clear();
 	}
 
 	public void clear() {
@@ -48,8 +46,6 @@ public class Context {
 		routeArgs = new Scope.RouteArgs();
 		session = this.request == null ? new Scope.Session() : Scope.Session.restore(this);
 		flash = this.request == null ? new Scope.Flash() : Scope.Flash.restore(request);
-
-		validation = new Validation();
 
 		initCachedBoundActionMethodArgs();
 	}
@@ -126,6 +122,10 @@ public class Context {
 		return validation;
 	}
 
+	public void setValidation(Validation validation) {
+		this.validation = validation;
+	}
+
 	public Scope.RouteArgs getRouteArgs() {
 		return routeArgs;
 	}
@@ -145,4 +145,6 @@ public class Context {
 	public void setLocaleStr(String localeStr) {
 		this.localeStr = localeStr;
 	}
+
+
 }

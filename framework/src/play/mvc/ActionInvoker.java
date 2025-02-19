@@ -42,7 +42,7 @@ import play.utils.Utils;
 public class ActionInvoker {
 
     @SuppressWarnings("unchecked")
-    public static void resolve(Request request) {
+    public static void resolve(Context context, Request request) {
         if (!Play.started) {
             return;
         }
@@ -50,6 +50,8 @@ public class ActionInvoker {
         if (request.resolved) {
             return;
         }
+
+        initActionContext(context, request, context.getResponse());
 
         // Route and resolve format if not already done
         if (request.action == null) {
@@ -217,7 +219,7 @@ public class ActionInvoker {
     }
 
     private static Monitor prepareInvokeAction(Context context) throws UnsupportedEncodingException {
-        // FIXME: did init here before - do we need to re-init?
+        initActionContext(context, context.getRequest(), context.getResponse());
 
         // 1. Prepare request params
         context.getParams().__mergeWith(context.getRequest().routeArgs);
@@ -232,6 +234,13 @@ public class ActionInvoker {
 
         // Monitoring
         return MonitorFactory.start(context.getRequest().action + "()");
+    }
+
+    private static void initActionContext(Context context, Request request, Http.Response response) {
+        context.setRequest(request);
+        context.setResponse(response);
+
+        context.clear();
     }
 
     private static void invokeControllerCatchMethods(Context context, Throwable throwable) throws Exception {

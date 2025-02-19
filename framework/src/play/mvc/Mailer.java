@@ -28,7 +28,6 @@ import org.apache.commons.mail.MultiPartEmail;
 import org.apache.commons.mail.SimpleEmail;
 import play.Logger;
 import play.Play;
-
 import play.exceptions.MailException;
 import play.exceptions.TemplateNotFoundException;
 import play.exceptions.UnexpectedException;
@@ -255,7 +254,7 @@ public class Mailer {
 
         @Override
         public String getContentType() {
-            return MimeTypes.getContentType(context, this.virtualFile.getName());
+            return MimeTypes.getContentType(context.getResponse(), this.virtualFile.getName());
         }
 
         @Override

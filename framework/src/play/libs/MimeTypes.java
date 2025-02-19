@@ -65,8 +65,8 @@ public class MimeTypes {
      *            the file name
      * @return the content-type deduced from the file extension.
      */
-    public static String getContentType(Context context, String filename) {
-        return getContentType(context, filename, "application/octet-stream");
+    public static String getContentType(Http.Response response, String filename) {
+        return getContentType(response, filename, "application/octet-stream");
     }
 
     /**
@@ -79,13 +79,13 @@ public class MimeTypes {
      *            the default content-type to return when no matching content-type is found
      * @return the content-type deduced from the file extension.
      */
-    public static String getContentType(Context context, String filename, String defaultContentType) {
+    public static String getContentType(Http.Response response, String filename, String defaultContentType) {
         String contentType = getMimeType(filename, null);
         if (contentType == null) {
             contentType = defaultContentType;
         }
         if (contentType != null && contentType.startsWith("text/")) {
-            return contentType + "; charset=" + getCurrentCharset(context);
+            return contentType + "; charset=" + getCurrentCharset(response);
         }
         return contentType;
     }
@@ -107,12 +107,11 @@ public class MimeTypes {
         }
     }
 
-    private static String getCurrentCharset(Context context) {
+    private static String getCurrentCharset(Http.Response response) {
         String charset;
-        Http.Response currentResponse = context != null ? context.getResponse() : null;
 
-        if (currentResponse != null) {
-            charset = currentResponse.encoding;
+        if (response != null) {
+            charset = response.encoding;
         } else {
             charset = Play.defaultWebEncoding;
         }

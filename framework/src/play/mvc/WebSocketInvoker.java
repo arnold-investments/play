@@ -6,8 +6,8 @@ import play.exceptions.UnexpectedException;
 
 public class WebSocketInvoker {
 
-    public static void resolve(Http.Request request) {
-        ActionInvoker.resolve(request);
+    public static void resolve(Context context, Http.Request request) {
+        ActionInvoker.resolve(context, request);
     }
 
     public static void invoke(Context context) {
