@@ -105,10 +105,9 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
                 // Reset request object and response object for the current
                 // thread.
 
-                context = new Context(new Http.Request(), new Response());
-                Response response = context.getResponse();
+                context = new Context(parseRequest(ctx, nettyRequest, messageEvent), new Response());
 
-                context.setRequest(parseRequest(ctx, nettyRequest, messageEvent));
+                Response response = context.getResponse();
                 Request request = context.getRequest();
 
                     // Buffered in memory output
