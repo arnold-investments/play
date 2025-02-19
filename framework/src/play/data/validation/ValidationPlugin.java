@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.sf.oval.ConstraintViolation;
+import net.sf.oval.configuration.annotation.AnnotationsConfigurer;
 import net.sf.oval.context.MethodParameterContext;
 import net.sf.oval.guard.Guard;
 import play.PlayPlugin;
@@ -47,7 +48,16 @@ public class ValidationPlugin extends PlayPlugin {
                 return;
             }
 
-            List<ConstraintViolation> violations = new Validator().validateAction(context);
+            Validator validator = new Validator();
+            NeedContextListener needContextListener = new NeedContextListener(context);
+            validator.getConfigurers().stream()
+                .filter(c -> c instanceof AnnotationsConfigurer)
+                .map(c -> (AnnotationsConfigurer) c)
+                .forEach(c -> {
+                    c.addCheckInitializationListener(needContextListener);
+                });
+
+            List<ConstraintViolation> violations = validator.validateAction(context);
             ArrayList<Error> errors = new ArrayList<>();
             String[] paramNames = Java.parameterNames(context.getActionMethod());
             for (ConstraintViolation violation : violations) {
@@ -86,14 +96,7 @@ public class ValidationPlugin extends PlayPlugin {
 
             List<ConstraintViolation> violations = new ArrayList<>();
             Object instance = null;
-            // Patch for scala defaults
-            if (!Modifier.isStatic(actionMethod.getModifiers()) && actionMethod.getDeclaringClass().getSimpleName().endsWith("$")) {
-                try {
-                    instance = actionMethod.getDeclaringClass().getDeclaredField("MODULE$").get(null);
-                } catch (Exception e) {
-                    throw new ActionNotFoundException(context.getRequest().action, e);
-                }
-            }
+
             Object[] rArgs = ActionInvoker.getActionMethodArgs(context, actionMethod, instance);
             validateMethodParameters(null, actionMethod, rArgs, violations);
             validateMethodPre(null, actionMethod, rArgs, violations);

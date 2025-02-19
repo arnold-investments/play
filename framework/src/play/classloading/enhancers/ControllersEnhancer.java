@@ -23,15 +23,6 @@ import play.exceptions.UnexpectedException;
  * JB: NOT USED AS ENHANCER ANYMORE!
  */
 public class ControllersEnhancer {
-
-    public static final ThreadLocal<Stack<String>> currentAction = new ThreadLocal<>();
-
-    /**
-     * Mark class that need controller enhancement
-     */
-    public interface ControllerSupport {
-    }
-
     /**
      * Runtime part needed by the instrumentation
      */

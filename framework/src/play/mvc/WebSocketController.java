@@ -1,10 +1,8 @@
 package play.mvc;
 
-import play.classloading.enhancers.ControllersEnhancer.ControllerSupport;
 import play.mvc.results.WebSocketDisconnect;
 
-public class WebSocketController implements ControllerSupport, PlayController {
-
+public class WebSocketController implements PlayController {
     protected Context context;
 
     @Override

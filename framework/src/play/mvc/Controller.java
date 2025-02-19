@@ -7,18 +7,14 @@ import java.io.File;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Future;
 import org.w3c.dom.Document;
 import play.Invoker;
-import play.Invoker.Suspend;
 import play.Logger;
 import play.Play;
 import play.classloading.ApplicationClasses.ApplicationClass;
-import play.classloading.enhancers.ControllersEnhancer.ControllerSupport;
 import play.data.binding.Unbinder;
 import play.exceptions.NoRouteFoundException;
 import play.exceptions.PlayException;
@@ -43,7 +39,6 @@ import play.mvc.results.RenderXml;
 import play.mvc.results.Unauthorized;
 import play.templates.Template;
 import play.templates.TemplateLoader;
-import play.utils.Default;
 import play.utils.Java;
 import play.vfs.VirtualFile;
 
@@ -53,7 +48,7 @@ import play.vfs.VirtualFile;
  *
  * This is the class that your controllers should extend in most cases.
  */
-public class Controller implements PlayController, ControllerSupport {
+public class Controller implements PlayController {
 
     protected Context context;
 
@@ -538,9 +533,6 @@ public class Controller implements PlayController, ControllerSupport {
      *            true -&gt; 301, false -&gt; 302
      */
     protected static void redirect(String url, boolean permanent) {
-        if (url.indexOf("/") == -1) { // fix Java !
-            redirect(url, permanent, new Object[0]);
-        }
         throw new Redirect(url, permanent);
     }
 
@@ -552,8 +544,8 @@ public class Controller implements PlayController, ControllerSupport {
      * @param args
      *            Method arguments
      */
-    public static void redirect(String action, Object... args) {
-        redirect(action, false, args);
+    public static void redirect(Context context, String action, Object... args) {
+        redirect(context, action, false, args);
     }
 
     /**
@@ -571,32 +563,14 @@ public class Controller implements PlayController, ControllerSupport {
             Map<String, Object> newArgs = new HashMap<>(args.length);
             Method actionMethod = (Method) ActionInvoker.getActionMethod(action)[1];
             String[] names = Java.parameterNames(actionMethod);
+
             for (int i = 0; i < names.length && i < args.length; i++) {
                 Annotation[] annotations = actionMethod.getParameterAnnotations()[i];
-                boolean isDefault = false;
-                try {
-                    Method defaultMethod = actionMethod.getDeclaringClass()
-                            .getDeclaredMethod(actionMethod.getName() + "$default$" + (i + 1));
-                    // Patch for scala defaults
-                    if (!Modifier.isStatic(actionMethod.getModifiers()) && actionMethod.getDeclaringClass().getSimpleName().endsWith("$")) {
-                        Object instance = actionMethod.getDeclaringClass().getDeclaredField("MODULE$").get(null);
-                        if (defaultMethod.invoke(instance).equals(args[i])) {
-                            isDefault = true;
-                        }
-                    }
-                } catch (NoSuchMethodException e) {
-                    //
-                }
 
                 // Bind the argument
-
-                if (isDefault) {
-                    newArgs.put(names[i], new Default(args[i]));
-                } else {
-                    Unbinder.unBind(context, newArgs, args[i], names[i], annotations);
-                }
-
+                Unbinder.unBind(context, newArgs, args[i], names[i], annotations);
             }
+
             try {
                 ActionDefinition actionDefinition = Router.reverse(context, action, newArgs);
 
@@ -839,41 +813,9 @@ public class Controller implements PlayController, ControllerSupport {
         return (Class<? extends Controller>) request.controllerClass;
     }
 
-    /**
-     * Suspend this request and wait for the task completion
-     *
-     * <p>
-     * <b>Important:</b> The method will not resume on the line after you call this. The method will be called again as
-     * if there was a new HTTP request.
-     * </p>
-     * 
-     * @param task
-     *            Taks to wait for
-     * @deprecated
-     */
-    @Deprecated
-    protected static void waitFor(Http.Request request, Future<?> task) {
-        request.isNew = false;
-        throw new Suspend(task);
-    }
 
     protected static <T> void await(F.Promise<T> promise, F.Action<T> callback) {
-        F.Promise<Void> chainedPromise = new F.Promise<>();
-
-        promise.onRedeem(p -> {
-            Throwable throwable = null;
-
-            try {
-                callback.invoke(p.getOrNull());
-            } catch (Throwable t) {
-                throwable = t;
-            } finally {
-                chainedPromise.invokeWithException(throwable);
-            }
-        });
-
-
-        throw new Invoker.AsyncRequest(chainedPromise);
+        throw new Invoker.AsyncRequest(promise, callback);
     }
 
     /**

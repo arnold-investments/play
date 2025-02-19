@@ -33,6 +33,7 @@ import play.db.DB;
 import play.db.Model;
 import play.exceptions.JPAException;
 import play.exceptions.UnexpectedException;
+import play.libs.F;
 import play.mvc.Context;
 
 import static java.util.Collections.emptyList;
@@ -308,8 +309,8 @@ public class JPAPlugin extends PlayPlugin {
         super(name);
       }
       @Override
-      public Object withinFilter(play.libs.F.Function0<Object> fct) throws Throwable {
-        return JPA.withinFilter(fct);
+      public Object withinFilter(Context context, F.Function0<Object> fct) throws Throwable {
+        return JPA.withinFilter(context, fct);
       }
     }
 
