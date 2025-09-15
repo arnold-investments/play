@@ -239,7 +239,14 @@ public abstract class Binder {
                 return bindArray(context, clazz, paramNode, bindingAnnotations);
             }
 
+            if (RecordSupport.isRecord(clazz)) {
+                return RecordSupport.bindRecord(context, paramNode, clazz, bindingAnnotations);
+            }
+
             if (!paramNode.getAllChildren().isEmpty()) {
+                if (ConstructorBindingSupport.shouldUseConstructorBinding(clazz)) {
+                    return ConstructorBindingSupport.bindViaConstructor(context, paramNode, clazz, bindingAnnotations);
+                }
                 return internalBindBean(context, clazz, paramNode, bindingAnnotations);
             }
 
