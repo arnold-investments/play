@@ -13,9 +13,8 @@ final class ConstructorBindingSupport {
 	static boolean shouldUseConstructorBinding(Class<?> clazz) {
 		// If there is no no-arg ctor, or there are final fields, or type/any ctor is annotated
 		boolean hasNoArg = hasNoArgCtor(clazz);
-		boolean hasFinals = hasFinalFields(clazz);
 		boolean annotated = clazz.isAnnotationPresent(BindConstructor.class) || anyCtorAnnotated(clazz, BindConstructor.class);
-		return !hasNoArg || hasFinals || annotated;
+		return !hasNoArg || annotated;
 	}
 
 	static Object bindViaConstructor(
@@ -24,7 +23,6 @@ final class ConstructorBindingSupport {
         Class<?> clazz,
         BindingAnnotations bindingAnnotations
     ) {
-
 		Constructor<?> ctor = selectConstructor(clazz);
 		String[] names = parameterNames(clazz, ctor);
 		Parameter[] params = ctor.getParameters();
@@ -130,13 +128,6 @@ final class ConstructorBindingSupport {
 		} catch (NoSuchMethodException e) {
 			return false;
 		}
-	}
-
-	private static boolean hasFinalFields(Class<?> clazz) {
-		for (Field f : clazz.getDeclaredFields()) {
-			if (Modifier.isFinal(f.getModifiers()) && !f.isSynthetic()) return true;
-		}
-		return false;
 	}
 
 	private static boolean anyCtorAnnotated(Class<?> clazz, Class<? extends Annotation> ann) {
