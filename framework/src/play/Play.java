@@ -388,7 +388,7 @@ public class Play {
 
     private static void extractHttpPort() {
         String javaCommand = System.getProperty("sun.java.command", "");
-        jregex.Matcher m = new jregex.Pattern(".* --http.port=({port}\\d+)").matcher(javaCommand);
+        Matcher m = Pattern.compile(".* --http.port=(?<port>\\d+)").matcher(javaCommand);
         if (m.matches()) {
             configuration.setProperty("http.port", m.group("port"));
         }

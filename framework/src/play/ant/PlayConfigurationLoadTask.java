@@ -150,7 +150,6 @@ public class PlayConfigurationLoadTask {
     private Set<File> modules() {
         Set<File> modules = new HashSet<>();
 
-        // Old-skool
         for (Map.Entry<String,String> entry: properties().entrySet()) {
             if (!entry.getKey().startsWith("module.")) {
                 continue;

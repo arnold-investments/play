@@ -14,16 +14,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import javax.persistence.ManyToMany;
-import javax.persistence.ManyToOne;
-import javax.persistence.MappedSuperclass;
-import javax.persistence.NoResultException;
-import javax.persistence.OneToMany;
-import javax.persistence.OneToOne;
-import javax.persistence.PostLoad;
-import javax.persistence.PostPersist;
-import javax.persistence.PostUpdate;
-import javax.persistence.Query;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.NoResultException;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
+import jakarta.persistence.PostUpdate;
+import jakarta.persistence.Query;
 import org.apache.commons.lang3.StringUtils;
 import play.Play;
 import play.data.binding.BeanWrapper;
@@ -32,7 +32,7 @@ import play.data.binding.BindingAnnotations;
 import play.data.binding.ParamNode;
 import play.exceptions.UnexpectedException;
 import play.mvc.Context;
-import play.mvc.Scope.Params;
+
 
 /**
  * A super class for JPA entities

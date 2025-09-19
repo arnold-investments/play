@@ -18,6 +18,11 @@ framework/tests/test-application/db
 framework/play-*.jar
 framework/docs
 samples-and-tests/*/test-result/
+/framework/lib/*
+!/framework/lib/*.patched.jar
+.gradle
+/framework/build
+/modules/*/build
 
 # IDE and editors
 *~

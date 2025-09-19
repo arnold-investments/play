@@ -113,7 +113,7 @@ public abstract class Enhancer {
      * @param ctClass
      *            the javassist class representation
      * @param annotation
-     *            fully qualified name of the annotation class eg."javax.persistence.Entity"
+     *            fully qualified name of the annotation class eg."jakarta.persistence.Entity"
      * @return true if class has the annotation
      * @throws java.lang.ClassNotFoundException
      *             if class not found
@@ -134,7 +134,7 @@ public abstract class Enhancer {
      * @param ctField
      *            the javassist field representation
      * @param annotation
-     *            fully qualified name of the annotation class eg."javax.persistence.Entity"
+     *            fully qualified name of the annotation class eg."jakarta.persistence.Entity"
      * @return true if field has the annotation
      * @throws java.lang.ClassNotFoundException
      *             if class not found
@@ -155,7 +155,7 @@ public abstract class Enhancer {
      * @param ctMethod
      *            the javassist method representation
      * @param annotation
-     *            fully qualified name of the annotation class eg."javax.persistence.Entity"
+     *            fully qualified name of the annotation class eg."jakarta.persistence.Entity"
      * @return true if field has the annotation
      * @throws java.lang.ClassNotFoundException
      *             if class not found

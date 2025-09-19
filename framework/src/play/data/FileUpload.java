@@ -1,6 +1,6 @@
 package play.data;
 
-import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload2.core.FileItem;
 import org.apache.commons.io.FilenameUtils;
 import play.data.parsing.TempFilePlugin;
 import play.exceptions.UnexpectedException;
@@ -21,19 +21,22 @@ public class FileUpload implements Upload {
         // Left empty
     }
 
-    public FileUpload(FileItem fileItem) {
+    public FileUpload(FileItem<?> fileItem) {
         this.fileItem = fileItem;
         File tmp = TempFilePlugin.createTempFolder();
+
         // Check that the file has a name to avoid to override the field folder
-        if (fileItem.getName().trim().length() > 0) {
-            defaultFile = new File(tmp, FilenameUtils.getName(fileItem.getFieldName()) + File.separator
+        if (!fileItem.getName().trim().isEmpty()) {
+            defaultFile = new File(tmp, FilenameUtils.getName(fileItem.getFieldName())
+                    + File.separator
                     + FilenameUtils.getName(fileItem.getName()));
             try {
                 if (!defaultFile.getCanonicalPath().startsWith(tmp.getCanonicalPath())) {
                     throw new IOException("Temp file try to override existing file?");
                 }
+
                 defaultFile.getParentFile().mkdirs();
-                fileItem.write(defaultFile);
+                fileItem.write(defaultFile.toPath());
             } catch (Exception e) {
                 throw new IllegalStateException("Error when trying to write to file " + defaultFile.getAbsolutePath(), e);
             }

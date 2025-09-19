@@ -3,13 +3,13 @@ package play.data;
 import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload2.core.FileItem;
 
 public class MemoryUpload implements Upload {
 
-    final FileItem fileItem;
+    final FileItem<?> fileItem;
 
-    public MemoryUpload(FileItem fileItem) {
+    public MemoryUpload(FileItem<?> fileItem) {
         this.fileItem = fileItem;
     }
 
@@ -20,12 +20,20 @@ public class MemoryUpload implements Upload {
 
     @Override
     public byte[] asBytes() {
-        return fileItem.get();
+        try {
+            return fileItem.get();
+        } catch (java.io.IOException e) {
+            throw new play.exceptions.UnexpectedException(e);
+        }
     }
 
     @Override
     public InputStream asStream() {
-        return new ByteArrayInputStream(fileItem.get());
+        try {
+            return new ByteArrayInputStream(fileItem.get());
+        } catch (java.io.IOException e) {
+            throw new play.exceptions.UnexpectedException(e);
+        }
     }
 
     @Override

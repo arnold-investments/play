@@ -1,6 +1,5 @@
 package play.db;
 
-import jregex.Matcher;
 import org.apache.commons.lang3.StringUtils;
 import play.Logger;
 import play.Play;
@@ -14,6 +13,8 @@ import javax.sql.DataSource;
 import java.io.File;
 import java.sql.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DBPlugin extends PlayPlugin {
 
@@ -176,7 +177,7 @@ public class DBPlugin extends PlayPlugin {
                 dbConfig.put("db.destroyMethod", "close");
             }
 
-            Matcher m = new jregex.Pattern("^mysql:(//)?(({user}[a-zA-Z0-9_]+)(:({pwd}[^@]+))?@)?(({host}[^/]+)/)?({name}[a-zA-Z0-9_]+)(\\?)?({parameters}[^\\s]+)?$").matcher(dbConfig.getProperty("db", ""));
+            Matcher m = Pattern.compile("^mysql:(//)?((?<user>[a-zA-Z0-9_]+)(:(?<pwd>[^@]+))?@)?((?<host>[^/]+)/)?(?<name>[a-zA-Z0-9_]+)(\\?)?(?<parameters>[^\\s]+)?$").matcher(dbConfig.getProperty("db", ""));
             if (m.matches()) {
                 String user = m.group("user");
                 String password = m.group("pwd");
@@ -194,7 +195,7 @@ public class DBPlugin extends PlayPlugin {
                 }
             }
             
-            m = new jregex.Pattern("^postgres:(//)?(({user}[a-zA-Z0-9_]+)(:({pwd}[^@]+))?@)?(({host}[^/]+)/)?({name}[^\\s]+)$").matcher(dbConfig.getProperty("db", ""));
+            m = Pattern.compile("^postgres:(//)?((?<user>[a-zA-Z0-9_]+)(:(?<pwd>[^@]+))?@)?((?<host>[^/]+)/)?(?<name>[^\\s]+)$").matcher(dbConfig.getProperty("db", ""));
             if (m.matches()) {
                 String user = m.group("user");
                 String password = m.group("pwd");

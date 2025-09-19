@@ -1,0 +1,4 @@
+rootProject.name = "play-framework"
+
+include ':testrunner'
+project(':testrunner').projectDir = file('..\\modules\\testrunner')

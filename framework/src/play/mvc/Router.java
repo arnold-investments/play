@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import jregex.Matcher;
-import jregex.Pattern;
-import jregex.REFlags;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.commons.lang3.StringUtils;
 import play.Logger;
 import play.Play;
@@ -30,12 +30,12 @@ import play.vfs.VirtualFile;
  */
 public class Router {
 
-    static final Pattern routePattern = new Pattern(
-            "^({method}GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WS|\\*)[(]?({headers}[^)]*)(\\))?\\s+({path}.*/[^\\s]*)\\s+({action}[^\\s(]+)({params}.+)?(\\s*)$");
+    static final Pattern routePattern = Pattern.compile(
+            "^(?<method>GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD|WS|\\*)[(]?(?<headers>[^)]*)(\\))?\\s+(?<path>.*/[^\\s]*)\\s+(?<action>[^\\s(]+)(?<params>.+)?(\\s*)$");
     /**
      * Pattern used to locate a method override instruction in request.querystring
      */
-    static final Pattern methodOverride = new Pattern("^.*x-http-method-override=({method}GET|PUT|POST|PATCH|DELETE).*$");
+    static final Pattern methodOverride = Pattern.compile("^.*x-http-method-override=(?<method>GET|PUT|POST|PATCH|DELETE).*$");
     /**
      * Timestamp the routes file was last loaded at.
      */
@@ -364,7 +364,7 @@ public class Router {
         }
         // request method may be overridden if a x-http-method-override parameter
         // is given
-        if (request.querystring != null && methodOverride.matches(request.querystring)) {
+        if (request.querystring != null && methodOverride.matcher(request.querystring).matches()) {
             Matcher matcher = methodOverride.matcher(request.querystring);
             if (matcher.matches()) {
                 if (Logger.isTraceEnabled()) {
@@ -564,7 +564,7 @@ public class Router {
                         List<Object> l = (List<Object>) value;
                         value = l.get(0);
                     }
-                    if (!value.toString().startsWith(":") && !arg.constraint.matches(Utils.urlEncodePath(value.toString()))) {
+                    if (!value.toString().startsWith(":") && !arg.constraint.matcher(Utils.urlEncodePath(value.toString())).matches()) {
                         allRequiredArgsAreHere = false;
                         break;
                     }
@@ -828,13 +828,13 @@ public class Router {
         Arg hostArg = null;
         public int routesFileLine;
         public String routesFile;
-        static final Pattern customRegexPattern = new Pattern("\\{([a-zA-Z_][a-zA-Z_0-9]*)\\}");
-        static final Pattern argsPattern = new Pattern("\\{<([^>]+)>([a-zA-Z_0-9]+)\\}");
-        static final Pattern paramPattern = new Pattern("([a-zA-Z_0-9]+):'(.*)'");
+        static final Pattern customRegexPattern = Pattern.compile("\\{([a-zA-Z_][a-zA-Z_0-9]*)}");
+        static final Pattern argsPattern = Pattern.compile("\\{<([^>]+)>([a-zA-Z_0-9]+)}");
+        static final Pattern paramPattern = Pattern.compile("([a-zA-Z_0-9]+):'(.*)'");
 
         public void compute() {
             this.host = "";
-            this.hostPattern = new Pattern(".*");
+            this.hostPattern = Pattern.compile(".*");
             if (action.startsWith("staticDir:") || action.startsWith("staticFile:")) {
                 // Is there is a host argument, append it.
                 if (!path.startsWith("/")) {
@@ -846,7 +846,7 @@ public class Router {
                         Logger.warn("Static route cannot have a dynamic host name");
                         return;
                     }
-                    this.hostPattern = new Pattern(host.replaceAll("\\.", "\\\\."));
+                    this.hostPattern = Pattern.compile(host.replaceAll("\\.", "\\\\."));
                 }
                 if (!method.equalsIgnoreCase("*") && !method.equalsIgnoreCase("GET")) {
                     Logger.warn("Static route only support GET method");
@@ -859,10 +859,10 @@ public class Router {
                     Logger.warn("The path for a staticDir route must end with / (%s)", this);
                     this.path += "/";
                 }
-                this.pattern = new Pattern("^" + path + "({resource}.*)$");
+                this.pattern = Pattern.compile("^" + path + "(?<resource>.*)$");
                 this.staticDir = action.substring("staticDir:".length());
             } else if (action.startsWith("staticFile:")) {
-                this.pattern = new Pattern("^" + path + "$");
+                this.pattern = Pattern.compile("^" + path + "$");
                 this.staticFile = true;
                 this.staticDir = action.substring("staticFile:".length());
             } else {
@@ -880,8 +880,8 @@ public class Router {
                         Logger.trace("host [" + host + "]");
                     }
 
-                    Matcher m = new Pattern(pattern).matcher(host);
-                    this.hostPattern = new Pattern(pattern);
+                    this.hostPattern = Pattern.compile(pattern);
+                    Matcher m = hostPattern.matcher(host);
 
                     if (m.matches()) {
                         if (this.host.contains("{")) {
@@ -899,7 +899,7 @@ public class Router {
                                 // TODO Check that default value is actually
                                 // used for other cases.
                                 hostArg.defaultValue = host;
-                                hostArg.constraint = new Pattern(".*");
+                                hostArg.constraint = Pattern.compile(".*");
 
                                 if (Logger.isTraceEnabled()) {
                                     Logger.trace("adding hostArg [" + hostArg + "]");
@@ -912,17 +912,17 @@ public class Router {
 
                 }
                 String patternString = path;
-                patternString = customRegexPattern.replacer("\\{<[^/]+>$1\\}").replace(patternString);
+                patternString = customRegexPattern.matcher(patternString).replaceAll("{<[^/]+>$1}");
                 Matcher matcher = argsPattern.matcher(patternString);
                 while (matcher.find()) {
                     Arg arg = new Arg();
                     arg.name = matcher.group(2);
-                    arg.constraint = new Pattern(matcher.group(1));
+                    arg.constraint = Pattern.compile(matcher.group(1));
                     args.add(arg);
                 }
 
-                patternString = argsPattern.replacer("({$2}$1)").replace(patternString);
-                this.pattern = new Pattern(patternString);
+                patternString = argsPattern.matcher(patternString).replaceAll("({$2}$1)");
+                this.pattern = Pattern.compile(patternString);
                 // Action pattern
                 patternString = action;
                 patternString = patternString.replace(".", "[.]");
@@ -933,12 +933,12 @@ public class Router {
                         actionArgs.add(arg.name);
                     }
                 }
-                actionPattern = new Pattern(patternString, REFlags.IGNORE_CASE);
+                actionPattern = Pattern.compile(patternString, Pattern.CASE_INSENSITIVE);
             }
         }
 
         public void addParams(String params) {
-            if (params == null || params.length() < 1) {
+            if (params == null || params.isEmpty()) {
                 return;
             }
             params = params.substring(1, params.length() - 1);
@@ -954,7 +954,7 @@ public class Router {
 
         // TODO: Add args names
         public void addFormat(String params) {
-            if (params == null || params.length() < 1) {
+            if (params == null || params.isEmpty()) {
                 return;
             }
             params = params.trim();
@@ -1035,7 +1035,7 @@ public class Router {
                             if (child.startsWith(root)) {
                                 throw new RenderStatic(childResourceName);
                             }
-                        } catch (IOException e) {
+                        } catch (IOException _) {
                         }
                         throw new NotFound(resource);
                     } else {

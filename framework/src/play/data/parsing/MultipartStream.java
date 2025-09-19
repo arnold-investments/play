@@ -5,10 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import org.apache.commons.fileupload.FileItemStream;
-import org.apache.commons.fileupload.ProgressListener;
-import org.apache.commons.fileupload.util.Closeable;
-import org.apache.commons.fileupload.util.Streams;
+import java.io.Closeable;
+import org.apache.commons.fileupload2.core.ProgressListener;
 
 /**
  * <p> Low level API for processing file uploads.
@@ -72,6 +70,14 @@ import org.apache.commons.fileupload.util.Streams;
  * @version $Id: MultipartStream.java 174 2007-11-04 21:25:00Z leo $
  */
 public class MultipartStream {
+
+    /**
+     * Runtime exception indicating that the current item has been skipped/closed.
+     * Replaces dependency on legacy FileItemStream.ItemSkippedException from FileUpload 1.x.
+     */
+    public static class ItemSkippedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+    }
 
     /**
      * Internal class, which is used to invoke the
@@ -532,8 +538,9 @@ public class MultipartStream {
      */
     public int readBodyData(OutputStream output)
             throws MalformedStreamException, IOException {
-        InputStream istream = newInputStream();
-        return (int) Streams.copy(istream, output, false);
+        try (InputStream inputStream = newInputStream()) {
+            return (int) inputStream.transferTo(output);
+        }
     }
 
     /**
@@ -797,7 +804,7 @@ public class MultipartStream {
         @Override
         public int read() throws IOException {
             if (closed) {
-                throw new FileItemStream.ItemSkippedException();
+                throw new ItemSkippedException();
             }
             if (available() == 0) {
                 if (makeAvailable() == 0) {
@@ -824,7 +831,7 @@ public class MultipartStream {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             if (closed) {
-                throw new FileItemStream.ItemSkippedException();
+                throw new ItemSkippedException();
             }
             if (len == 0) {
                 return 0;
@@ -875,7 +882,7 @@ public class MultipartStream {
         @Override
         public long skip(long bytes) throws IOException {
             if (closed) {
-                throw new FileItemStream.ItemSkippedException();
+                throw new ItemSkippedException();
             }
             int av = available();
             if (av == 0) {
@@ -923,7 +930,6 @@ public class MultipartStream {
          * Returns, whether the stream is closed.
          * @return True, if the stream is closed, otherwise false.
          */
-        @Override
         public boolean isClosed() {
             return closed;
         }

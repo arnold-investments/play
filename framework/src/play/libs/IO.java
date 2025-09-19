@@ -100,11 +100,7 @@ public class IO {
 
     public static List<String> readLines(InputStream is) {
         List<String> lines = null;
-        try {
-            lines = IOUtils.readLines(is, Charset.defaultCharset());
-        } catch (IOException ex) {
-            throw new UnexpectedException(ex);
-        }
+        lines = IOUtils.readLines(is, Charset.defaultCharset());
         return lines;
     }
 

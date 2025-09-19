@@ -1,0 +1,77 @@
+plugins {
+    id 'java'
+}
+
+// Ensure we compile with Java 22 to mirror Ant's source/target
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(22)
+    }
+    sourceCompatibility = JavaVersion.VERSION_22
+    targetCompatibility = JavaVersion.VERSION_22
+}
+
+// Keep the historical source layout used by the module (everything under 'src')
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+        resources {
+            // Resources are co-located with Java sources; include only the patterns Ant used
+            srcDirs = ['src']
+            include '**/*.properties', '**/*.xml', '**/play.plugins'
+        }
+    }
+    test {
+        java.srcDirs = []
+        resources.srcDirs = []
+    }
+}
+
+// Mirror Ant classpath: framework/classes + framework/lib/*.jar + firephoque/*.jar
+configurations {
+    provided
+}
+
+dependencies {
+    // Compile against prebuilt framework classes and libraries, but do not package them
+    compileOnly files('../../framework/classes')
+    compileOnly fileTree(dir: '../../framework/lib', include: ['*.jar'])
+    compileOnly fileTree(dir: 'firephoque', include: ['*.jar'])
+
+    // Expose same classpath at runtime when needed (not packaged into our jar)
+    runtimeOnly files('../../framework/classes')
+    runtimeOnly fileTree(dir: '../../framework/lib', include: ['*.jar'])
+    runtimeOnly fileTree(dir: 'firephoque', include: ['*.jar'])
+}
+
+// Match Ant's destination: lib/play-testrunner.jar and include the special manifest section
+jar {
+    destinationDirectory = layout.projectDirectory.dir('lib')
+    archiveFileName = 'play-testrunner.jar'
+    from(sourceSets.main.output)
+    // Add the custom manifest section used by Play
+    manifest {
+        // Gradle supports named sections via attributes(Map, String sectionName)
+        attributes(['Specification-Title': 'Test runner module'], 'Play')
+    }
+}
+
+// Keep compiler args consistent with Ant
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:deprecation']
+}
+
+// Convenience task to clean the historical lib output similar to Ant behavior
+tasks.register('cleanLib') {
+    group = 'build'
+    doLast {
+        delete fileTree(dir: 'lib', include: ['play-testrunner.jar'])
+    }
+}
+
+// Ensure standard clean also removes our lib artifact
+clean {
+    delete 'lib/play-testrunner.jar'
+}

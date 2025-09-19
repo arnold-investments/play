@@ -1,0 +1,236 @@
+
+plugins {
+    id 'java'
+}
+
+version = '1.7.1'
+
+group = 'play'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(22)
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src'
+            exclude 'play/ant/**'
+        }
+        resources {
+            // Put generated resources first so play/version from generated overrides any src copy
+            srcDir "$buildDir/generated-resources"
+            srcDir 'src'
+            include '**/*.properties'
+            include '**/*.xml'
+            include '**/play.plugins'
+            // Ensure the generated version file is included like Ant's classes/play/version
+            include 'play/version'
+        }
+    }
+    test {
+        java {
+            // No tests for the framework here, but keep default empty
+        }
+        resources {}
+    }
+}
+
+configurations {
+    provided
+    implementation { transitive = false }
+    testImplementation { transitive = false }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = uri('https://maven.artifacts.atlassian.com/repository/public')
+    }
+    maven {
+        url = uri('https://repo.eclipse.org/content/repositories/eclipse-snapshots')
+    }
+}
+
+ext.parseDependenciesYml = {
+    File f = file('dependencies.yml')
+    if (!f.exists()) return []
+    def lines = f.readLines('UTF-8')
+    boolean inRequire = false
+    List<Map> deps = []
+    lines.each { raw ->
+        String line = raw.trim()
+        if (!line || line.startsWith('#')) return
+        if (line.startsWith('require:')) { inRequire = true; return }
+        if (inRequire && (raw.startsWith('repositories:') || raw.matches('^[a-zA-Z].*:.*$'))) { inRequire = false }
+        if (!inRequire) return
+        if (!line.startsWith('- ')) return
+        // strip "- " and comments
+        line = line.substring(2)
+        int hash = line.indexOf('#')
+        if (hash >= 0) line = line.substring(0, hash).trim()
+        if (!line) return
+        // Formats:
+        // 1) group -> artifact version
+        // 2) artifact version
+        String group
+        String name
+        String versionStr
+        if (line.contains('->')) {
+            def parts = line.split('->')
+            group = parts[0].trim()
+            def rest = parts[1].trim()
+            def seg = rest.split(" ")
+            name = seg[0].trim()
+            versionStr = seg.length > 1 ? seg[1].trim() : null
+        } else {
+            def seg = line.split(" ")
+            name = seg[0].trim()
+            versionStr = seg.length > 1 ? seg[1].trim() : null
+            group = name
+        }
+        if (!versionStr) return
+        // Strip optional $version variables if present
+        versionStr = versionStr.replace('$version','').trim()
+        if (!versionStr) return
+        deps << [group: group, name: name, version: versionStr]
+    }
+    return deps
+}
+
+ext.addDepsFromYml = {
+    def deps = parseDependenciesYml()
+    deps.each { d ->
+        def notation
+        if (d.version.endsWith('.patched')) {
+            // Fall back to local lib jar for patched versions
+            String jarName = "${d.name}-${d.version}.jar"
+            File jarFile = file("lib/${jarName}")
+            notation = files(jarFile)
+        } else {
+            notation = "${d.group}:${d.name}:${d.version}"
+        }
+        // def isTest = (d.name == 'junit' || d.name.startsWith('hamcrest'))
+        //if (isTest) {
+        //    dependencies.add('testImplementation', notation)
+        //} else {
+        //    dependencies.add('implementation', notation)
+        //}
+        dependencies.add('implementation', notation)
+    }
+}
+
+dependencies {
+    // Populate dependencies from dependencies.yml
+    addDepsFromYml()
+
+    // Depend on the testrunner module (Gradle project) similar to Ant's module dependency
+    implementation project(':testrunner')
+
+    // Keep lib-test jars if any present as additional fallback
+    testImplementation fileTree(dir: 'lib-test', include: ['*.jar'])
+}
+
+// Sync Gradle-resolved dependencies into lib to keep Ant and Gradle in sync
+// - Copies non-patched dependencies resolved from repositories into lib
+// - Ensures patched jars (version endsWith('.patched')) already exist in lib
+// - Deletes obsolete jars from lib that are no longer required
+// This runs automatically before building the jar.
+tasks.register('syncLib') {
+    group = 'build'
+    description = 'Sync dependencies from dependencies.yml into lib directory (non-transitive) and remove obsolete jars.'
+    inputs.file(file('dependencies.yml'))
+    outputs.dir(file('lib'))
+    doLast {
+        File libDir = file('lib')
+        if (!libDir.exists()) { libDir.mkdirs() }
+        def deps = parseDependenciesYml()
+        Set<String> desired = new LinkedHashSet<>()
+        deps.each { d ->
+            if (d.version.endsWith('.patched')) {
+                String jarName = "${d.name}-${d.version}.jar"
+                File jarFile = new File(libDir, jarName)
+                if (!jarFile.exists()) {
+                    throw new GradleException("Patched dependency missing: ${jarFile}. Place the patched jar in lib or adjust dependencies.yml.")
+                }
+                desired.add(jarFile.name)
+            } else {
+                def dep = dependencies.create("${d.group}:${d.name}:${d.version}")
+                def conf = configurations.detachedConfiguration(dep)
+                conf.transitive = false
+                conf.resolve().each { File f ->
+                    if (f.name.toLowerCase().endsWith('.jar')) {
+                        File target = new File(libDir, f.name)
+                        if (!target.exists() || target.length() != f.length()) {
+                            copy { from f; into libDir }
+                        }
+                        desired.add(f.name)
+                    }
+                }
+            }
+        }
+        // Delete any jars in lib that are not part of desired set
+        libDir.listFiles()?.findAll { it.isFile() && it.name.toLowerCase().endsWith('.jar') && !desired.contains(it.name) }?.each { File old ->
+            old.delete()
+        }
+    }
+}
+
+tasks.named('jar') {
+    dependsOn 'syncLib'
+}
+
+tasks.named('compileJava') {
+    dependsOn 'syncLib'
+}
+
+// Ensure testrunner compiles after framework lib is synced, as it relies on framework/lib jars
+project(':testrunner') {
+    // Configure after evaluation to ensure tasks exist
+    afterEvaluate {
+        tasks.named('compileJava') {
+            dependsOn rootProject.tasks.named('syncLib')
+        }
+    }
+}
+
+// Generate version file as Ant does (src/play/version and classes/play/version)
+// We avoid mutating src; instead, generate resource to package into the jar.
+tasks.register('generateVersion') {
+    outputs.dir "$buildDir/generated-resources/play"
+    doLast {
+        File dir = file("$buildDir/generated-resources/play")
+        dir.mkdirs()
+        file("$buildDir/generated-resources/play/version").text = project.version.toString()
+    }
+}
+
+tasks.named('processResources') {
+    dependsOn 'generateVersion'
+    // Avoid duplicate resource error for play/version; prefer the first occurrence (from generated-resources)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// Jar configuration to match Ant
+jar {
+    // Write the jar directly into the framework directory to override existing play-<version>.jar
+    destinationDirectory = layout.projectDirectory
+    archiveFileName = "play-${version}.jar"
+    manifest {
+        attributes(
+            'Premain-Class': 'play.classloading.HotswapAgent',
+            'Can-Redefine-Classes': 'true'
+        )
+        attributes([
+            'Specification-Title': 'Play! framework',
+            'Specification-Version': "${version}",
+            'Specification-Vendor': 'zenexity'
+        ], 'Play')
+    }
+    // Include everything from compiled classes and generated version resource (handled by resources)
+}
+
+// Default task mirrors Ant default
+defaultTasks 'jar'

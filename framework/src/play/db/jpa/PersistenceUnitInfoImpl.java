@@ -1,13 +1,12 @@
 package play.db.jpa;
 
+import javax.sql.DataSource;
 import org.hibernate.jpa.HibernatePersistenceProvider;
 
-import javax.persistence.SharedCacheMode;
-import javax.persistence.ValidationMode;
-import javax.persistence.spi.ClassTransformer;
-import javax.persistence.spi.PersistenceUnitInfo;
-import javax.persistence.spi.PersistenceUnitTransactionType;
-import javax.sql.DataSource;
+import jakarta.persistence.SharedCacheMode;
+import jakarta.persistence.ValidationMode;
+import jakarta.persistence.spi.ClassTransformer;
+import jakarta.persistence.spi.PersistenceUnitInfo;
 import java.net.URL;
 import java.util.Collections;
 import java.util.List;
@@ -23,7 +22,8 @@ public class PersistenceUnitInfoImpl implements PersistenceUnitInfo {
 
     private final String persistenceUnitName;
 
-    private PersistenceUnitTransactionType transactionType = PersistenceUnitTransactionType.RESOURCE_LOCAL;
+    @SuppressWarnings("removal")
+    private jakarta.persistence.spi.PersistenceUnitTransactionType transactionType = jakarta.persistence.spi.PersistenceUnitTransactionType.RESOURCE_LOCAL;
 
     private final List<Class<?>> managedClasses;
     private final List<String> mappingFileNames;
@@ -52,7 +52,18 @@ public class PersistenceUnitInfoImpl implements PersistenceUnitInfo {
     }
 
     @Override
-    public PersistenceUnitTransactionType getTransactionType() {
+    public String getScopeAnnotationName() {
+        return null;
+    }
+
+    @Override
+    public List<String> getQualifierAnnotationNames() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    @SuppressWarnings("removal")
+    public jakarta.persistence.spi.PersistenceUnitTransactionType getTransactionType() {
         return transactionType;
     }
 
@@ -61,10 +72,12 @@ public class PersistenceUnitInfoImpl implements PersistenceUnitInfo {
         return jtaDataSource;
     }
 
+    @SuppressWarnings("removal")
     public PersistenceUnitInfoImpl setJtaDataSource(DataSource jtaDataSource) {
         this.jtaDataSource = jtaDataSource;
         this.nonJtaDataSource = null;
-        transactionType = PersistenceUnitTransactionType.JTA;
+
+        transactionType = jakarta.persistence.spi.PersistenceUnitTransactionType.JTA;
         return this;
     }
 
@@ -73,10 +86,11 @@ public class PersistenceUnitInfoImpl implements PersistenceUnitInfo {
         return nonJtaDataSource;
     }
 
+    @SuppressWarnings("removal")
     public PersistenceUnitInfoImpl setNonJtaDataSource(DataSource nonJtaDataSource) {
         this.nonJtaDataSource = nonJtaDataSource;
         this.jtaDataSource = null;
-        transactionType = PersistenceUnitTransactionType.RESOURCE_LOCAL;
+        transactionType = jakarta.persistence.spi.PersistenceUnitTransactionType.RESOURCE_LOCAL;
         return this;
     }
 
