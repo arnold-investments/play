@@ -5,6 +5,7 @@ import play.Logger;
 import play.libs.IO;
 
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.util.*;
 
@@ -14,9 +15,9 @@ public class HTTP {
 
     public static class ContentTypeWithEncoding {
         public final String contentType;
-        public final String encoding;
+        public final Charset encoding;
 
-        public ContentTypeWithEncoding(String contentType, String encoding) {
+        public ContentTypeWithEncoding(String contentType, Charset encoding) {
             this.contentType = contentType;
             this.encoding = encoding;
         }
@@ -24,7 +25,7 @@ public class HTTP {
 
     public static ContentTypeWithEncoding parseContentType(String contentType) {
         if (contentType == null) {
-            return new ContentTypeWithEncoding("text/html".intern(), null);
+            return new ContentTypeWithEncoding("text/html", null);
         } else {
             String[] contentTypeParts = contentType.split(";");
             String _contentType = contentTypeParts[0].trim().toLowerCase();
@@ -42,7 +43,7 @@ public class HTTP {
                     }
                 }
             }
-            return new ContentTypeWithEncoding(_contentType, _encoding);
+            return new ContentTypeWithEncoding(_contentType, _encoding != null ? Charset.forName(_encoding) : null);
         }
 
     }

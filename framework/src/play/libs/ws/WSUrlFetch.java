@@ -10,6 +10,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -46,13 +47,13 @@ public class WSUrlFetch implements WSImpl {
     }
 
     @Override
-    public play.libs.WS.WSRequest newRequest(String url, String encoding) {
+    public play.libs.WS.WSRequest newRequest(String url, Charset encoding) {
         return new WSUrlfetchRequest(url, encoding);
     }
 
     public static class WSUrlfetchRequest extends WSRequest {
 
-        protected WSUrlfetchRequest(String url, String encoding) {
+        protected WSUrlfetchRequest(String url, Charset encoding) {
             super(url, encoding);
         }
 

@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.net.URI;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -73,9 +74,9 @@ public class WS extends PlayPlugin {
      * encoding. This makes this encoding-enabling backward compatible
      */
     public static class WSWithEncoding {
-        public final String encoding;
+        public final Charset encoding;
 
-        public WSWithEncoding(String encoding) {
+        public WSWithEncoding(Charset encoding) {
             this.encoding = encoding;
         }
 
@@ -86,7 +87,7 @@ public class WS extends PlayPlugin {
          *            the encoding to use in the communication
          * @return a new instance of WS with specified encoding
          */
-        public WSWithEncoding withEncoding(String newEncoding) {
+        public WSWithEncoding withEncoding(Charset newEncoding) {
             return new WSWithEncoding(newEncoding);
         }
 
@@ -145,7 +146,7 @@ public class WS extends PlayPlugin {
      *            the encoding to use in the communication
      * @return a new instance of WS with specified encoding
      */
-    public static WSWithEncoding withEncoding(String encoding) {
+    public static WSWithEncoding withEncoding(Charset encoding) {
         return wsWithDefaultEncoding.withEncoding(encoding);
     }
 
@@ -228,9 +229,9 @@ public class WS extends PlayPlugin {
     }
 
     public interface WSImpl {
-        public WSRequest newRequest(String url, String encoding);
+        WSRequest newRequest(String url, Charset encoding);
 
-        public void stop();
+        void stop();
     }
 
     public abstract static class WSRequest {
@@ -240,7 +241,7 @@ public class WS extends PlayPlugin {
          * The virtual host this request will use
          */
         public String virtualHost;
-        public final String encoding;
+        public final Charset encoding;
         public String username;
         public String password;
         public Scheme scheme;
@@ -271,7 +272,7 @@ public class WS extends PlayPlugin {
             this.encoding = Play.defaultWebEncoding;
         }
 
-        public WSRequest(String url, String encoding) {
+        public WSRequest(String url, Charset encoding) {
             try {
                 this.url = new URI(url).toASCIIString();
             } catch (Exception e) {
@@ -664,7 +665,7 @@ public class WS extends PlayPlugin {
      */
     public abstract static class HttpResponse {
 
-        private String _encoding = null;
+        private Charset _encoding = null;
 
         /**
          * the HTTP status code
@@ -696,7 +697,7 @@ public class WS extends PlayPlugin {
             return getHeader("content-type") != null ? getHeader("content-type") : getHeader("Content-Type");
         }
 
-        public String getEncoding() {
+        public Charset getEncoding() {
             // Have we already parsed it?
             if (_encoding != null) {
                 return _encoding;
@@ -739,7 +740,7 @@ public class WS extends PlayPlugin {
          * @return a DOM document
          */
         public Document getXml(boolean namespaceAware) {
-            return getXml(getEncoding(), namespaceAware);
+            return getXml(getEncoding().name(), namespaceAware);
         }
 
         /**

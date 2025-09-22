@@ -1,11 +1,11 @@
 package play.test;
 
-import com.ning.http.client.FluentCaseInsensitiveStringsMap;
-import com.ning.http.client.multipart.FilePart;
-import com.ning.http.client.multipart.MultipartBody;
-import com.ning.http.client.multipart.MultipartUtils;
-import com.ning.http.client.multipart.Part;
-import com.ning.http.client.multipart.StringPart;
+import org.asynchttpclient.FluentCaseInsensitiveStringsMap;
+import org.asynchttpclient.multipart.FilePart;
+import org.asynchttpclient.multipart.MultipartBody;
+import org.asynchttpclient.multipart.MultipartUtils;
+import org.asynchttpclient.multipart.Part;
+import org.asynchttpclient.multipart.StringPart;
 import java.net.URI;
 import java.net.URISyntaxException;
 import org.junit.Before;
