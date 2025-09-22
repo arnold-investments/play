@@ -24,7 +24,7 @@ public class ConfigurablePluginDisablingPlugin extends PlayPlugin {
 
     /**
      * List holding all disabled plugins.
-     * when reloading config, we have to enable hem again, in case,
+     * When reloading config, we have to enable them again, in case
      * they are no longer listed in the "disable plugins"-section
      */
     protected static final Set<String> previousDisabledPlugins = new HashSet<>();

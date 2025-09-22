@@ -10,6 +10,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
@@ -461,6 +462,9 @@ public class Play {
             matcher.appendTail(newValue);
             propsFromFile.setProperty(key.toString(), newValue.toString());
         }
+
+
+
         // Include
         Map<Object, Object> toInclude = new HashMap<>(16);
         for (Object key : propsFromFile.keySet()) {
@@ -556,6 +560,19 @@ public class Play {
 
             // Routes
             Router.detectChanges(ctxPath);
+
+            if (watchService != null) {
+                registerWatcher(
+                        routes.getRealFile().toPath().getParent(),
+                        (a, b) -> {
+                            Play.detectChanges();
+                        },
+                        StandardWatchEventKinds.ENTRY_CREATE,
+                        StandardWatchEventKinds.ENTRY_DELETE,
+                        StandardWatchEventKinds.ENTRY_MODIFY,
+                        StandardWatchEventKinds.OVERFLOW
+                );
+            }
 
             // Cache
             Cache.init();
@@ -662,10 +679,6 @@ public class Play {
     public static volatile WatchService watchService = null;
     private static final ExecutorService watchServiceExecutor = Executors.newSingleThreadExecutor();
     private static final Map<WatchKey, WatchCallback> watchServiceCallbacks = new ConcurrentHashMap<>();
-
-    static {
-
-    }
 
     private static void initWatchService() {
         try {

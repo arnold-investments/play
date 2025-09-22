@@ -96,7 +96,7 @@ public class ApplicationClasses {
                             && !applicationClass.javaClass.getName().equals(clazz.getName())) {
                         results.add(applicationClass);
                     }
-                } catch (Exception e) {
+                } catch (Exception ignore) {
                 }
             }
         }
@@ -138,7 +138,7 @@ public class ApplicationClasses {
     }
 
     /**
-     * Put a new class to the cache.
+     * Put a new class in the cache.
      * 
      * @param applicationClass
      *            The class to add
@@ -151,7 +151,7 @@ public class ApplicationClasses {
     }
 
     /**
-     * Remove a class from cache
+     * Remove a class from the cache
      * 
      * @param applicationClass
      *            The class to remove
@@ -164,7 +164,7 @@ public class ApplicationClasses {
     }
 
     /**
-     * Remove a class from cache
+     * Remove a class from the cache
      * 
      * @param applicationClass
      *            The class name to remove
@@ -177,7 +177,7 @@ public class ApplicationClasses {
     }
 
     /**
-     * Does this class is already loaded ?
+     * Is this class already loaded?
      * 
      * @param name
      *            The fully qualified class name
@@ -225,7 +225,7 @@ public class ApplicationClasses {
          */
         public Long timestamp = 0L;
         /**
-         * Is this class compiled
+         * Is this class compiled?
          */
         boolean compiled;
         /**
@@ -247,7 +247,7 @@ public class ApplicationClasses {
         }
 
         /**
-         * Need to refresh this class !
+         * Need to refresh this class!
          */
         public final void refresh() {
             if (this.javaFile != null) {
@@ -277,7 +277,7 @@ public class ApplicationClasses {
                 // All plugins must be loaded before we can start enhancing.
                 // This is a problem when loading PlayPlugins bundled as regular app-class since it uses the same
                 // classloader
-                // as the other (soon to be) enhanced play-app-classes.
+                // as the other (soon-to-be) enhanced play-app-classes.
                 boolean shouldEnhance = true;
                 try {
                     CtClass ctClass = enhanceChecker_classPool.makeClass(new ByteArrayInputStream(this.enhancedByteCode));
@@ -309,7 +309,7 @@ public class ApplicationClasses {
         }
 
         /**
-         * Is this class already compiled but not defined ?
+         * Is this class already compiled but not defined?
          * 
          * @return if the class is compiled but not defined
          */

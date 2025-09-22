@@ -18,6 +18,7 @@ import org.eclipse.jdt.internal.compiler.env.IModuleAwareNameEnvironment;
 import org.eclipse.jdt.internal.compiler.env.INameEnvironment;
 import org.eclipse.jdt.internal.compiler.env.NameEnvironmentAnswer;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
+import org.eclipse.jdt.internal.compiler.lookup.ModuleBinding;
 import org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
 import org.eclipse.jdt.internal.compiler.util.JRTUtil;
 import play.Logger;
@@ -25,12 +26,21 @@ import play.Play;
 import play.classloading.ApplicationClasses.ApplicationClass;
 import play.exceptions.CompilationException;
 import play.exceptions.UnexpectedException;
+import play.vfs.VirtualFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringTokenizer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -46,9 +56,21 @@ public class ApplicationCompiler {
 		Map.entry("25", CompilerOptions.VERSION_25)
 	);
 
-	final Map<String, Boolean> packagesCache = new HashMap<>();
+	final Map<String, char[][]> packagesCache = new HashMap<>();
 	final ApplicationClasses applicationClasses;
 	final Map<String, String> settings;
+
+    private static final char[] MODULE_JAVA = new char[]{'j','a','v','a'};
+    private static final char[] MODULE_JDK = new char[]{'j','d','k'};
+
+    private static final char[] PACKAGE_JAVA = new char[]{'j','a','v','a'};
+    private static final char[] PACKAGE_JAVAX = new char[]{'j','a','v','a','x'};
+    private static final char[] PACKAGE_SUN = new char[]{'s','u','n'};
+    private static final char[] PACKAGE_COM = new char[]{'c','o','m'};
+
+    private static final char[] PACKAGE_PLAY = new char[]{'p','l','a','y'};
+
+    private static final char[][] MODULES_UNNAMED = new char[][]{ModuleBinding.UNNAMED};
 
 	/**
 	 * Try to guess the magic configuration options
@@ -157,39 +179,74 @@ public class ApplicationCompiler {
 		IErrorHandlingPolicy policy = DefaultErrorHandlingPolicies.exitOnFirstError();
 		IProblemFactory problemFactory = new DefaultProblemFactory(Locale.ENGLISH);
 
-        // FIXME
-        FileSystem fs = new FileSystem(null, null, "UTF-8");
+        String javaHome = System.getProperty("java.home");
+
+        // Most JDKs ship with lib/jrt-fs.jar
+        String jrtFsJar = javaHome + File.separator + "lib" + File.separator + "jrt-fs.jar";
+        String[] classpath = new String[] { jrtFsJar };
+        FileSystem fs = new FileSystem(classpath, null, "UTF-8");
 
 		// To find types ...
         INameEnvironment nameEnvironment = new IModuleAwareNameEnvironment() {
+            private boolean isJavaModuleOrPackage(char[] moduleName, char[][] name) {
+                if (moduleName != null && moduleName.length > 4 && ((moduleName[0] == 'j' && moduleName[1] == 'd' && moduleName[2] == 'k' && moduleName[3] == '.') || (moduleName.length > 5 && moduleName[0] == 'j' && moduleName[1] == 'a' && moduleName[2] == 'v' && moduleName[3] == 'a' && moduleName[4] == '.'))) {
+                    return true;
+                }
 
+                // do not add javax here, as some packages (especially xml ones) provide their own javax subpackages
+                if (name.length > 0 && (Arrays.equals(PACKAGE_JAVA, name[0]) || Arrays.equals(PACKAGE_SUN, name[0]))) {
+                    return true;
+                }
+
+                return false;
+            }
+
+
+            /**
+             * Ignores module for now
+             */
             @Override
-            public NameEnvironmentAnswer findType(char[][] compoundTypeName) {
-                StringBuilder result = new StringBuilder(compoundTypeName.length * 7);
-                for (int i = 0; i < compoundTypeName.length; i++) {
+            public NameEnvironmentAnswer findType(char[][] compoundName, char[] moduleName) {
+                NameEnvironmentAnswer a1 = fs.findType(compoundName, moduleName);
+                if (a1 != null || isJavaModuleOrPackage(moduleName, compoundName)) {
+                    return a1;
+                }
+
+                StringBuilder result = new StringBuilder(compoundName.length * 7);
+                for (int i = 0; i < compoundName.length; i++) {
                     if (i != 0) {
                         result.append('.');
                     }
-                    result.append(compoundTypeName[i]);
+                    result.append(compoundName[i]);
                 }
+
                 return findType(result.toString());
             }
 
+            /**
+             * Ignores module for now
+             */
             @Override
-            public NameEnvironmentAnswer findType(char[] typeName, char[][] packageName) {
+            public NameEnvironmentAnswer findType(char[] typeName, char[][] packageName, char[] moduleName) {
+                NameEnvironmentAnswer a1 = fs.findType(typeName, packageName, moduleName);
+                if (a1 != null || isJavaModuleOrPackage(moduleName, packageName)) {
+                    return a1;
+                }
+
                 StringBuilder result = new StringBuilder(packageName.length * 7 + 1 + typeName.length);
                 for (final char[] element : packageName) {
                     result.append(element);
                     result.append('.');
                 }
+
                 result.append(typeName);
+
                 return findType(result.toString());
             }
 
             private NameEnvironmentAnswer findType(String name) {
                 try {
-
-                    if (name.startsWith("play.") || name.startsWith("java.") || name.startsWith("javax.")) {
+                    if (name.startsWith("play.")) {
                         byte[] bytes = Play.classloader.getClassDefinition(name);
                         if (bytes != null) {
                             ClassFileReader classFileReader = new ClassFileReader(bytes, name.toCharArray(), true);
@@ -228,91 +285,109 @@ public class ApplicationCompiler {
                 }
             }
 
+            /**
+             * This will not handle other modules declaring the same packages as the play project
+             */
             @Override
-            public boolean isPackage(char[][] parentPackageName, char[] packageName) {
-                // Rebuild something usable
-                String name;
-                if (parentPackageName == null) {
-                    name = new String(packageName);
-                } else {
-                    StringBuilder sb = new StringBuilder(parentPackageName.length * 7 + packageName.length);
-                    for (char[] p : parentPackageName) {
-                        sb.append(p);
-                        sb.append(".");
-                    }
-                    sb.append(new String(packageName));
-                    name = sb.toString();
+            public char[][] getModulesDeclaringPackage(char[][] packageName, char[] moduleName) {
+                if (packageName.length == 0) {
+                    throw new IllegalStateException("Empty package name");
                 }
 
+                if (isJavaModuleOrPackage(moduleName, packageName)) {
+                    return fs.getModulesDeclaringPackage(packageName, moduleName);
+                }
+
+                String name = Arrays.stream(packageName).map(String::valueOf).collect(Collectors.joining("."));
                 if (packagesCache.containsKey(name)) {
                     return packagesCache.get(name);
                 }
-                // Check if there are .java or .class for this resource
-                if (Play.classloader.getResource(name.replace('.', '/') + ".class") != null) {
-                    packagesCache.put(name, false);
-                    return false;
-                }
-                if (applicationClasses.getApplicationClass(name) != null) {
-                    packagesCache.put(name, false);
-                    return false;
-                }
-                packagesCache.put(name, true);
-                return true;
-            }
 
-            // FIXME from here on
-            @Override
-            public NameEnvironmentAnswer findType(char[][] compoundName, char[] moduleName) {
-                // ignore module for now
-                return findType(compoundName);
-            }
+                List<char[]> modules;
+                char[][] fsModules = fs.getModulesDeclaringPackage(packageName, moduleName);
 
-            @Override
-            public NameEnvironmentAnswer findType(char[] typeName, char[][] packageName, char[] moduleName) {
-                // ignore module for now
-                return findType(typeName, packageName);
-            }
-
-            @Override
-            public char[][] getModulesDeclaringPackage(char[][] packageName, char[] moduleName) {
-                if (packageName.length > 0 && packageName[0].length > 0 &&
-                    (Stream.of("java", "javax", "sun").map(String::toCharArray).anyMatch(it -> Arrays.equals(it, packageName[0])))) {
-// TODO
+                if (fsModules != null && fsModules.length > 0) {
+                    modules = new ArrayList<>(Arrays.asList(fsModules));
+                } else {
+                    modules = new ArrayList<>();
                 }
 
-                return new char[][]{ moduleName };
+                if (!modules.contains(ModuleBinding.UNNAMED) && Play.classloader.getResource(name.replace('.', '/')) != null) {
+                    // if a directory matches the package name
+                    modules.add(ModuleBinding.UNNAMED);
+                }
+
+                char[][] cached = modules.toArray(new char[modules.size()][]);
+                packagesCache.put(name, cached);
+
+                return cached;
             }
+
+            private final List<Map<char[], Map<char[][], Boolean>>> hasCUCache = List.of(new HashMap<>(), new HashMap<>());
 
             @Override
             public boolean hasCompilationUnit(char[][] qualifiedPackageName, char[] moduleName, boolean checkCUs) {
-                throw new UnsupportedOperationException();
+                int index = checkCUs ? 1 : 0;
+
+                return hasCUCache.get(index)
+                    .computeIfAbsent(moduleName, m ->
+                        new HashMap<>()
+                    )
+                    .computeIfAbsent(qualifiedPackageName, p -> {
+                        boolean res = fs.hasCompilationUnit(qualifiedPackageName, moduleName, checkCUs);
+                        if (res || isJavaModuleOrPackage(moduleName, qualifiedPackageName)) {
+                            return res;
+                        }
+
+                        // TODO
+                        return false;
+
+                        /*
+                        Enumeration<URL> res;
+                        try {
+                            res = Play.classloader.getResources(Arrays.stream(qualifiedPackageName).map(String::valueOf).collect(Collectors.joining("/")));
+                        } catch (IOException e) {
+                            return false;
+                        }
+
+                        Iterator<URL> it = res.asIterator();
+                        ArrayList<URL> urls = new ArrayList<>();
+                        it.forEachRemaining(urls::add);
+
+                        if (urls.isEmpty()) {
+                            return false;
+                        }
+
+                        VirtualFile vf = new VirtualFile();
+
+                         */
+                    });
+
             }
 
             @Override
             public boolean isOnModulePath(ICompilationUnit unit) {
-                return false;
+                return false; // TODO: probably not correct for everything
             }
 
             @Override
             public IModule getModule(char[] moduleName) {
-                if (moduleName.length == 0) {
-                    return null;
-                }
-                JRTUtil.getJrtFileSystem()
+                return fs.getModule(moduleName); // unnamed module should return null, so this works for play stuff as well
             }
 
             @Override
             public char[][] getAllAutomaticModules() {
-                throw new UnsupportedOperationException();
+                return fs.getAllAutomaticModules(); // we're only in the unnamed module, so this should be fine
             }
 
             @Override
             public char[][] listPackages(char[] moduleName) {
-                throw new UnsupportedOperationException();
+                return fs.listPackages(moduleName); // should be okay, as this only supports named modules anyway
             }
 
             @Override
             public void cleanup() {
+                fs.cleanup();
             }
         };
 

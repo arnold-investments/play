@@ -1,31 +1,46 @@
 package play.db.jpa;
 
 
-import org.hibernate.CallbackException;
-import org.hibernate.EmptyInterceptor;
+import org.hibernate.Interceptor;
 import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.type.Type;
+
 import java.io.Serializable;
 
 
-public class HibernateInterceptor extends EmptyInterceptor {
+public class HibernateInterceptor implements Interceptor, Serializable {
 
-  public HibernateInterceptor() {
+	public HibernateInterceptor() {
 
-  }
+	}
+
+	public boolean onLoad(Object entity, Object id, Object[] state, String[] propertyNames, Type[] types) {
+		return false;
+	}
+
+	public boolean onFlushDirty(Object entity, Object id, Object[] currentState, Object[] previousState, String[] propertyNames, Type[] types) {
+		return false;
+	}
+
+	public void onDelete(Object entity, Object id, Object[] state, String[] propertyNames, Type[] types) {
+	}
+
+	public Object getEntity(String entityName, Object id) {
+		return null;
+	}
   
-  @Override
-  public int[] findDirty(Object o, Serializable id, Object[] arg2, Object[] arg3, String[] arg4, Type[] arg5) {
-    if (o instanceof JPABase && !((JPABase) o).willBeSaved) {
-      return new int[0];
-    }
-    return null;
-  }
+	@Override
+	public int[] findDirty(Object entity, Object id, Object[] currentState, Object[] previousState, String[] propertyNames, Type[] types) {
+		if (entity instanceof JPABase && !((JPABase) entity).willBeSaved) {
+			return new int[0];
+		}
+		return null;
+	}
 
     @Override
-    public boolean onCollectionUpdate(Object collection, Serializable key) throws CallbackException {
+    public boolean onCollectionUpdate(Object collection, Object key) {
         if (collection instanceof PersistentCollection) {
-            Object o = ((PersistentCollection) collection).getOwner();
+            Object o = ((PersistentCollection<?>) collection).getOwner();
             if (o instanceof JPABase) {
                 if (entities.get() != null) {
                     return ((JPABase) o).willBeSaved || ((JPABase) entities.get()).willBeSaved;
@@ -36,13 +51,13 @@ public class HibernateInterceptor extends EmptyInterceptor {
         } else {
             System.out.println("HOO: Case not handled !!!");
         }
-        return super.onCollectionUpdate(collection, key);
+        return Interceptor.super.onCollectionUpdate(collection, key);
     }
 
     @Override
-    public boolean onCollectionRecreate(Object collection, Serializable key) throws CallbackException {
+    public boolean onCollectionRecreate(Object collection, Object key) {
         if (collection instanceof PersistentCollection) {
-            Object o = ((PersistentCollection) collection).getOwner();
+            Object o = ((PersistentCollection<?>) collection).getOwner();
             if (o instanceof JPABase) {
                 if (entities.get() != null) {
                     return ((JPABase) o).willBeSaved || ((JPABase) entities.get()).willBeSaved;
@@ -54,13 +69,13 @@ public class HibernateInterceptor extends EmptyInterceptor {
             System.out.println("HOO: Case not handled !!!");
         }
 
-        return super.onCollectionRecreate(collection, key);
+        return Interceptor.super.onCollectionRecreate(collection, key);
     }
 
     @Override
-    public boolean onCollectionRemove(Object collection, Serializable key) throws CallbackException {
+    public boolean onCollectionRemove(Object collection, Object key)  {
         if (collection instanceof PersistentCollection) {
-            Object o = ((PersistentCollection) collection).getOwner();
+            Object o = ((PersistentCollection<?>) collection).getOwner();
             if (o instanceof JPABase) {
                 if (entities.get() != null) {
                     return ((JPABase) o).willBeSaved || ((JPABase) entities.get()).willBeSaved;
@@ -71,15 +86,15 @@ public class HibernateInterceptor extends EmptyInterceptor {
         } else {
             System.out.println("HOO: Case not handled !!!");
         }
-        return super.onCollectionRemove(collection, key);
+        return Interceptor.super.onCollectionRemove(collection, key);
     }
 
     protected final ThreadLocal<Object> entities = new ThreadLocal<>();
 
     @Override
-    public boolean onSave(Object entity, Serializable id, Object[] state, String[] propertyNames, Type[] types) {
+    public boolean onSave(Object entity, Object id, Object[] state, String[] propertyNames, Type[] types) {
         entities.set(entity);
-        return super.onSave(entity, id, state, propertyNames, types);
+        return Interceptor.super.onSave(entity, id, state, propertyNames, types);
     }
 
     @Override

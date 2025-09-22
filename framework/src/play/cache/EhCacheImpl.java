@@ -1,17 +1,24 @@
 package play.cache;
 
+import org.ehcache.Cache;
+import org.ehcache.CacheManager;
+import org.ehcache.config.builders.CacheConfigurationBuilder;
+import org.ehcache.config.builders.CacheManagerBuilder;
+import org.ehcache.config.builders.ResourcePoolsBuilder;
+import org.ehcache.expiry.ExpiryPolicy;
+import play.Logger;
+
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Element;
-import play.Logger;
+import java.util.function.Supplier;
 
 /**
  * EhCache implementation.
  *
  * <p>Ehcache is an open source, standards-based cache used to boost performance,
  * offload the database and simplify scalability. Ehcache is robust, proven and
- * full-featured and this has made it the most widely-used Java-based cache.</p>
+ * full-featured, and this has made it the most widely used Java-based cache.</p>
  *
  * Expiration is specified in seconds
  * 
@@ -19,153 +26,190 @@ import play.Logger;
  *
  */
 public class EhCacheImpl implements CacheImpl {
+	public record Element(Object value, int timeToLive){}
 
-    private static final String cacheName = "play";
-    private static EhCacheImpl uniqueInstance;
+	private static final String cacheName = "play";
+	private static EhCacheImpl uniqueInstance;
 
-    final CacheManager cacheManager = CacheManager.create();
+	final CacheManager cacheManager = CacheManagerBuilder.newCacheManagerBuilder().build(true);
 
-    final net.sf.ehcache.Cache cache;
+	final Cache<String, Element> cache;
 
+	/*
+		<defaultCache
+			maxElementsInMemory="10000"
+			eternal="false"
+			timeToIdleSeconds="120"
+			timeToLiveSeconds="120"
+			overflowToDisk="false"
+			maxElementsOnDisk="10000000"
+			diskPersistent="false"
+			diskExpiryThreadIntervalSeconds="120"
+			memoryStoreEvictionPolicy="LRU"
+	/>
+	 */
 
-    private EhCacheImpl() {
-        this.cacheManager.addCache(cacheName);
-        this.cache = cacheManager.getCache(cacheName);
-    }
+	private EhCacheImpl() {
+		this.cacheManager.createCache(
+			cacheName,
+			CacheConfigurationBuilder.newCacheConfigurationBuilder(
+				String.class,
+				Element.class,
+				ResourcePoolsBuilder.heap(10000)
+			)
 
-    public static EhCacheImpl getInstance() {
-        return uniqueInstance;
-    }
+				.withExpiry(new ExpiryPolicy<>() {
+					@Override
+					public Duration getExpiryForCreation(String key, Element value) {
+						return Duration.ofSeconds(value.timeToLive());
+					}
 
-    public static EhCacheImpl newInstance() {
-        uniqueInstance = new EhCacheImpl();
-        return uniqueInstance;
-    }
+					@Override
+					public Duration getExpiryForAccess(String key, Supplier<? extends Element> value) {
+						Element v = value.get();
 
-    @Override
-    public void add(String key, Object value, int expiration) {
-        if (cache.get(key) != null) {
-            return;
-        }
-        Element element = new Element(key, value);
-        element.setTimeToLive(expiration);
-        cache.put(element);
-    }
+						return v == null ? null : Duration.ofSeconds(v.timeToLive());
+					}
 
-    @Override
-    public void clear() {
-        cache.removeAll();
-    }
+					@Override
+					public Duration getExpiryForUpdate(String key, Supplier<? extends Element> oldValue, Element newValue) {
+						return Duration.ofSeconds(newValue.timeToLive());
+					}
+				})
+		);
 
-    @Override
-    public synchronized long decr(String key, int by) {
-        Element e = cache.get(key);
-        if (e == null) {
-            return -1;
-        }
-        long newValue = ((Number) e.getObjectValue()).longValue() - by;
-        Element newE = new Element(key, newValue);
-        newE.setTimeToLive(e.getTimeToLive());
-        cache.put(newE);
-        return newValue;
-    }
+		this.cache = cacheManager.getCache(cacheName, String.class, Element.class);
+	}
 
-    @Override
-    public void delete(String key) {
-        cache.remove(key);
-    }
+	public static EhCacheImpl getInstance() {
+		return uniqueInstance;
+	}
 
-    @Override
-    public Object get(String key) {
-        Element e = cache.get(key);
-        return (e == null) ? null : e.getObjectValue();
-    }
+	public static EhCacheImpl newInstance() {
+		uniqueInstance = new EhCacheImpl();
+		return uniqueInstance;
+	}
 
-    @Override
-    public Map<String, Object> get(String[] keys) {
-        Map<String, Object> result = new HashMap<>(keys.length);
-        for (String key : keys) {
-            result.put(key, get(key));
-        }
-        return result;
-    }
+	@Override
+	public void add(String key, Object value, int expiration) {
+		if (cache.get(key) != null) {
+			return;
+		}
 
-    @Override
-    public synchronized long incr(String key, int by) {
-        Element e = cache.get(key);
-        if (e == null) {
-            return -1;
-        }
-        long newValue = ((Number) e.getObjectValue()).longValue() + by;
-        Element newE = new Element(key, newValue);
-        newE.setTimeToLive(e.getTimeToLive());
-        cache.put(newE);
-        return newValue;
+		cache.put(key, new Element(value, expiration));
+	}
 
-    }
+	@Override
+	public void clear() {
+		cache.clear();
+	}
 
-    @Override
-    public void replace(String key, Object value, int expiration) {
-        if (cache.get(key) == null) {
-            return;
-        }
-        Element element = new Element(key, value);
-        element.setTimeToLive(expiration);
-        cache.put(element);
-    }
+	@Override
+	public synchronized long decr(String key, int by) {
+		Element e = cache.get(key);
+		if (e == null) {
+			return -1;
+		}
 
-    @Override
-    public boolean safeAdd(String key, Object value, int expiration) {
-        try {
-            add(key, value, expiration);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+		long newValue = ((Number) e.value()).longValue() - by;
+		Element newE = new Element(newValue, e.timeToLive());
+		cache.put(key, newE);
+		return newValue;
+	}
 
-    @Override
-    public boolean safeDelete(String key) {
-        try {
-            delete(key);
-            return true;
-        } catch (Exception e) {
-            Logger.error(e.toString());
-            return false;
-        }
-    }
+	@Override
+	public void delete(String key) {
+		cache.remove(key);
+	}
 
-    @Override
-    public boolean safeReplace(String key, Object value, int expiration) {
-        try {
-            replace(key, value, expiration);
-            return true;
-        } catch (Exception e) {
-            Logger.error(e.toString());
-            return false;
-        }
-    }
+	@Override
+	public Object get(String key) {
+		Element e = cache.get(key);
+		return (e == null) ? null : e.value();
+	}
 
-    @Override
-    public boolean safeSet(String key, Object value, int expiration) {
-        try {
-            set(key, value, expiration);
-            return true;
-        } catch (Exception e) {
-            Logger.error(e.toString());
-            return false;
-        }
-    }
+	@Override
+	public Map<String, Object> get(String[] keys) {
+		Map<String, Object> result = new HashMap<>(keys.length);
+		for (String key : keys) {
+			result.put(key, get(key));
+		}
+		return result;
+	}
 
-    @Override
-    public void set(String key, Object value, int expiration) {
-        Element element = new Element(key, value);
-        element.setTimeToLive(expiration);
-        cache.put(element);
-    }
+	@Override
+	public synchronized long incr(String key, int by) {
+		Element e = cache.get(key);
+		if (e == null) {
+			return -1;
+		}
+		long newValue = ((Number) e.value()).longValue() + by;
+		Element newE = new Element(newValue, e.timeToLive());
+		cache.put(key, newE);
+		return newValue;
 
-    @Override
-    public void stop() {
-        cacheManager.shutdown();
-    }
+	}
+
+	@Override
+	public void replace(String key, Object value, int expiration) {
+		if (cache.get(key) == null) {
+			return;
+		}
+		Element element = new Element(value, expiration);
+		cache.put(key, element);
+	}
+
+	@Override
+	public boolean safeAdd(String key, Object value, int expiration) {
+		try {
+			add(key, value, expiration);
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
+	@Override
+	public boolean safeDelete(String key) {
+		try {
+			delete(key);
+			return true;
+		} catch (Exception e) {
+			Logger.error(e.toString());
+			return false;
+		}
+	}
+
+	@Override
+	public boolean safeReplace(String key, Object value, int expiration) {
+		try {
+			replace(key, value, expiration);
+			return true;
+		} catch (Exception e) {
+			Logger.error(e.toString());
+			return false;
+		}
+	}
+
+	@Override
+	public boolean safeSet(String key, Object value, int expiration) {
+		try {
+			set(key, value, expiration);
+			return true;
+		} catch (Exception e) {
+			Logger.error(e.toString());
+			return false;
+		}
+	}
+
+	@Override
+	public void set(String key, Object value, int expiration) {
+		Element element = new Element(value, expiration);
+		cache.put(key, element);
+	}
+
+	@Override
+	public void stop() {
+		cacheManager.close();
+	}
 }

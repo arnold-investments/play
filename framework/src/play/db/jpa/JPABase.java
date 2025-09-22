@@ -20,12 +20,15 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PersistenceException;
 
-import org.hibernate.collection.internal.PersistentMap;
+import org.hibernate.Hibernate;
 import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.engine.spi.CollectionEntry;
 import org.hibernate.engine.spi.PersistenceContext;
 import org.hibernate.exception.GenericJDBCException;
 import org.hibernate.internal.SessionImpl;
+import org.hibernate.metamodel.mapping.CollectionPart;
+import org.hibernate.metamodel.mapping.PluralAttributeMapping;
+import org.hibernate.metamodel.mapping.internal.EntityCollectionPart;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.type.EntityType;
@@ -153,8 +156,10 @@ public class JPABase implements Serializable, play.db.Model {
                 if (doCascade) {
                     Object value = field.get(this);
                     if (value != null) {
-                        if (value instanceof PersistentMap) {
-                            if (((PersistentMap) value).wasInitialized()) {
+                        if (value instanceof Map<?,?>) {
+
+
+                            if (Hibernate.isInitialized(value)) {
 
                                 cascadeOrphans((PersistentCollection) value, willBeSaved);
 
@@ -198,11 +203,12 @@ public class JPABase implements Serializable, play.db.Model {
         if (ce != null) {
             CollectionPersister cp = ce.getLoadedPersister();
             if (cp != null) {
-                Type ct = cp.getElementType();
-                if (ct instanceof EntityType) {
-                    String entityName = ((EntityType) ct).getAssociatedEntityName(session.getFactory());
+	            PluralAttributeMapping pam = cp.getAttributeMapping();
+                CollectionPart elementPart = pam.getElementDescriptor();
+                if (elementPart instanceof EntityCollectionPart ecp) {
+                    String entityName = ecp.getEntityMappingType().getEntityName();
                     if (ce.getSnapshot() != null) {
-                        Collection orphans = ce.getOrphans(entityName, persistentCollection);
+                        Collection<?> orphans = ce.getOrphans(entityName, persistentCollection);
                         for (Object o : orphans) {
                             saveAndCascadeIfJPABase(o, willBeSaved);
                         }

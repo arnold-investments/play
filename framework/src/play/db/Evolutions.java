@@ -579,7 +579,7 @@ public class Evolutions extends PlayPlugin {
         Stack<Evolution> app;
 
         if (Play.mode.isDev() && Play.watchService != null) {
-            watched.computeIfAbsent(key, k -> {
+            watched.computeIfAbsent(key, ignore -> {
                 try {
                     WatchKey watchKey = Play.registerWatcher(
                         path,

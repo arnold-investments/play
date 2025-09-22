@@ -254,7 +254,6 @@ public class ApplicationClassloader extends ClassLoader {
                 return res.inputstream();
             }
         }
-        URL url = getResource(name);
 
         return super.getResourceAsStream(name);
     }
