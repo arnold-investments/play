@@ -1,6 +1,11 @@
 package play.libs.ws;
 
-import javax.net.ssl.*;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.security.KeyStore;

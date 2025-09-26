@@ -547,12 +547,12 @@ public class Play {
             String _defaultWebEncoding = configuration.getProperty("application.web_encoding");
             if (_defaultWebEncoding != null) {
                 Logger.info("Using custom default web encoding: " + _defaultWebEncoding);
-                defaultWebEncoding = _defaultWebEncoding;
+                defaultWebEncoding = Charset.forName(_defaultWebEncoding);
                 // Must update current response also, since the request/response triggering
                 // this configuration-loading in dev-mode have already been
                 // set up with the previous encoding
                 if (context != null && context.getResponse() != null) {
-                    context.getResponse().encoding = _defaultWebEncoding;
+                    context.getResponse().encoding = defaultWebEncoding;
                 }
             }
 

@@ -1,17 +1,17 @@
 package play.libs;
 
+import play.Logger;
+import play.Play;
+import play.PlayPlugin;
+import play.mvc.Http;
+
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import play.Logger;
-import play.Play;
-import play.PlayPlugin;
-import play.mvc.Context;
-import play.mvc.Http;
 
 /**
  * MimeTypes utils
@@ -107,8 +107,8 @@ public class MimeTypes {
         }
     }
 
-    private static String getCurrentCharset(Http.Response response) {
-        String charset;
+    private static Charset getCurrentCharset(Http.Response response) {
+        Charset charset;
 
         if (response != null) {
             charset = response.encoding;

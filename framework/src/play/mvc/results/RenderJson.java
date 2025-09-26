@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonSerializer;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
 import java.util.Objects;
 
 import play.exceptions.UnexpectedException;
@@ -57,7 +58,7 @@ public class RenderJson extends Result {
         try {
             Response response = context.getResponse();
 
-            String encoding = getEncoding(context.getResponse());
+            Charset encoding = getEncoding(context.getResponse());
             setContentTypeIfNotSet(response, "application/json; charset=" + encoding);
             response.out.write(json.getBytes(encoding));
         } catch (Exception e) {

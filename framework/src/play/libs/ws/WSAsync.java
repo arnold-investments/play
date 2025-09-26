@@ -1,10 +1,13 @@
 package play.libs.ws;
 
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.JdkSslContext;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import org.apache.commons.lang3.NotImplementedException;
 import org.asynchttpclient.AsyncCompletionHandler;
 import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.AsyncHttpClientConfig;
 import org.asynchttpclient.BoundRequestBuilder;
 import org.asynchttpclient.DefaultAsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
@@ -29,15 +32,14 @@ import javax.net.ssl.SSLContext;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Simple HTTP client to make webservices requests.
@@ -88,12 +90,13 @@ public class WSAsync implements WSImpl {
                         proxyPort);
                 throw new IllegalStateException("WS proxy is misconfigured -- check the logs for details");
             }
-
-            ProxyServer proxy = new ProxyServer(proxyHost, proxyPortInt, proxyUser, proxyPassword);
+//     public ProxyServer(String host, int port, int securedPort, Realm realm, List<String> nonProxyHosts, ProxyType proxyType) {
+            ProxyServer.Builder proxy = new ProxyServer.Builder(proxyHost, proxyPortInt)
+		            .setRealm(new Realm.Builder(proxyUser, proxyPassword));
             if (nonProxyHosts != null) {
                 String[] strings = nonProxyHosts.split("\\|");
                 for (String uril : strings) {
-                    proxy.addNonProxyHost(uril);
+                    proxy.setNonProxyHost(uril);
                 }
             }
             confBuilder.setProxyServer(proxy);
@@ -111,13 +114,13 @@ public class WSAsync implements WSImpl {
 
             if (sslCTX == null) {
                 sslCTX = WSSSLContext.getSslContext(keyStore, keyStorePass, CAValidation);
-                confBuilder.setSSLContext(sslCTX);
+                confBuilder.setSslContext(new JdkSslContext(sslCTX, true, null, SupportedCipherSuiteFilter.INSTANCE, null, ClientAuth.NONE, null, false));
             }
         }
         // when using raw urls, AHC does not encode the params in url.
         // this means we can/must encode it(with correct encoding) before
         // passing it to AHC
-        confBuilder.setDisableUrlEncodingForBoundedRequests(true);
+        confBuilder.setDisableUrlEncodingForBoundRequests(true);
         httpClient = new DefaultAsyncHttpClient(confBuilder.build());
     }
 
@@ -132,7 +135,7 @@ public class WSAsync implements WSImpl {
     }
 
     @Override
-    public WSRequest newRequest(String url, String encoding) {
+    public WSRequest newRequest(String url, Charset encoding) {
         return new WSAsyncRequest(url, encoding);
     }
 
@@ -141,7 +144,7 @@ public class WSAsync implements WSImpl {
         protected String type = null;
         private String generatedContentType = null;
 
-        protected WSAsyncRequest(String url, String encoding) {
+        protected WSAsyncRequest(String url, Charset encoding) {
             super(url, encoding);
         }
 
@@ -189,35 +192,32 @@ public class WSAsync implements WSImpl {
             int i = url.indexOf('?');
             if (i > 0) {
 
-                try {
-                    // extract query-string-part
-                    String queryPart = url.substring(i + 1);
+                // extract query-string-part
+                String queryPart = url.substring(i + 1);
 
-                    // parse queryPart - and decode it... (it is going to be
-                    // re-encoded later)
-                    for (String param : queryPart.split("&")) {
+                // parse queryPart - and decode it... (it is going to be
+                // re-encoded later)
+                for (String param : queryPart.split("&")) {
 
-                        i = param.indexOf('=');
-                        String name;
-                        String value = null;
-                        if (i <= 0) {
-                            // only a flag
-                            name = URLDecoder.decode(param, encoding);
-                        } else {
-                            name = URLDecoder.decode(param.substring(0, i), encoding);
-                            value = URLDecoder.decode(param.substring(i + 1), encoding);
-                        }
-
-                        if (value == null) {
-                            requestBuilder.addQueryParam(URLEncoder.encode(name, encoding), null);
-                        } else {
-                            requestBuilder.addQueryParam(URLEncoder.encode(name, encoding), URLEncoder.encode(value, encoding));
-                        }
-
+                    i = param.indexOf('=');
+                    String name;
+                    String value = null;
+                    if (i <= 0) {
+                        // only a flag
+                        name = URLDecoder.decode(param, encoding);
+                    } else {
+                        name = URLDecoder.decode(param.substring(0, i), encoding);
+                        value = URLDecoder.decode(param.substring(i + 1), encoding);
                     }
-                } catch (UnsupportedEncodingException e) {
-                    throw new RuntimeException("Error parsing query-part of url", e);
+
+                    if (value == null) {
+                        requestBuilder.addQueryParam(URLEncoder.encode(name, encoding), null);
+                    } else {
+                        requestBuilder.addQueryParam(URLEncoder.encode(name, encoding), URLEncoder.encode(value, encoding));
+                    }
+
                 }
+
             }
         }
 
@@ -418,14 +418,16 @@ public class WSAsync implements WSImpl {
                 default:
                     throw new RuntimeException("Scheme " + this.scheme + " not supported by the UrlFetch WS backend.");
                 }
-                builder.setRealm((new Realm.Builder()).setScheme(authScheme).setPrincipal(this.username).setPassword(this.password)
-                        .setUsePreemptiveAuth(true).build());
+                builder.setRealm((new Realm.Builder(this.username, this.password))
+	                .setScheme(authScheme)
+                    .setUsePreemptiveAuth(true)
+	                .build());
             }
             for (String key : this.headers.keySet()) {
                 builder.addHeader(key, headers.get(key));
             }
-            builder.setFollowRedirects(this.followRedirects);
-            builder.setRequestTimeout(this.timeout * 1000);
+            builder.setFollowRedirect(this.followRedirects);
+            builder.setRequestTimeout(Duration.ofMillis(this.timeout * 1000));
             if (this.virtualHost != null) {
                 builder.setVirtualHost(this.virtualHost);
             }
@@ -463,29 +465,26 @@ public class WSAsync implements WSImpl {
                 // could be optimized, we know the size of this array.
                 for (int i = 0; i < this.fileParams.length; i++) {
                     builder.addBodyPart(new FilePart(this.fileParams[i].paramName, this.fileParams[i].file,
-                            MimeTypes.getMimeType(this.fileParams[i].file.getName()), Charset.forName(encoding)));
+                            MimeTypes.getMimeType(this.fileParams[i].file.getName()), encoding));
                 }
                 if (this.parameters != null) {
-                    try {
-                        // AHC only supports ascii chars in keys in multipart
-                        for (String key : this.parameters.keySet()) {
-                            Object value = this.parameters.get(key);
-                            if (value instanceof Collection<?> || value.getClass().isArray()) {
-                                Collection<?> values = value.getClass().isArray() ? Arrays.asList((Object[]) value) : (Collection<?>) value;
-                                for (Object v : values) {
-                                    Part part = new ByteArrayPart(key, v.toString().getBytes(encoding), "text/plain",
-                                            Charset.forName(encoding), null);
-                                    builder.addBodyPart(part);
-                                }
-                            } else {
-                                Part part = new ByteArrayPart(key, value.toString().getBytes(encoding), "text/plain",
-                                        Charset.forName(encoding), null);
+                    // AHC only supports ascii chars in keys in multipart
+                    for (String key : this.parameters.keySet()) {
+                        Object value = this.parameters.get(key);
+                        if (value instanceof Collection<?> || value.getClass().isArray()) {
+                            Collection<?> values = value.getClass().isArray() ? Arrays.asList((Object[]) value) : (Collection<?>) value;
+                            for (Object v : values) {
+                                Part part = new ByteArrayPart(key, v.toString().getBytes(encoding), "text/plain",
+                                        encoding, null);
                                 builder.addBodyPart(part);
                             }
+                        } else {
+                            Part part = new ByteArrayPart(key, value.toString().getBytes(encoding), "text/plain",
+                                    encoding, null);
+                            builder.addBodyPart(part);
                         }
-                    } catch (UnsupportedEncodingException e) {
-                        throw new RuntimeException(e);
                     }
+
                 }
 
                 // Don't have to set content-type: AHC will automatically choose
@@ -529,12 +528,9 @@ public class WSAsync implements WSImpl {
                             sb.append(encode(value.toString()));
                         }
                     }
-                    try {
-                        byte[] bodyBytes = sb.toString().getBytes(this.encoding);
-                        builder.setBody(bodyBytes);
-                    } catch (UnsupportedEncodingException e) {
-                        throw new RuntimeException(e);
-                    }
+
+                    byte[] bodyBytes = sb.toString().getBytes(this.encoding);
+                    builder.setBody(bodyBytes);
 
                     setResolvedContentType("application/x-www-form-urlencoded; charset=" + encoding);
 
@@ -564,12 +560,8 @@ public class WSAsync implements WSImpl {
                 if (this.body instanceof InputStream) {
                     builder.setBody((InputStream) this.body);
                 } else {
-                    try {
-                        byte[] bodyBytes = this.body.toString().getBytes(this.encoding);
-                        builder.setBody(bodyBytes);
-                    } catch (UnsupportedEncodingException e) {
-                        throw new RuntimeException(e);
-                    }
+                    byte[] bodyBytes = this.body.toString().getBytes(this.encoding);
+                    builder.setBody(bodyBytes);
                 }
                 setResolvedContentType("text/html; charset=" + encoding);
             }
@@ -663,7 +655,7 @@ public class WSAsync implements WSImpl {
         }
 
         @Override
-        public String getString(String encoding) {
+        public String getString(Charset encoding) {
             try {
                 return response.getResponseBody(encoding);
             } catch (Exception e) {

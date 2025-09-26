@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import org.apache.commons.codec.net.URLCodec;
@@ -168,9 +169,9 @@ public class RenderBinary extends Result {
             String contentDisposition = "%s; filename=\"%s\"";
             response.setHeader("Content-Disposition", String.format(contentDisposition, dispositionType(), name));
         } else {
-            String encoding = getEncoding(response);
+            Charset encoding = getEncoding(response);
             String contentDisposition = "%1$s; filename*=" + encoding + "''%2$s; filename=\"%2$s\"";
-            response.setHeader("Content-Disposition", String.format(contentDisposition, dispositionType(), encoder.encode(name, encoding)));
+            response.setHeader("Content-Disposition", String.format(contentDisposition, dispositionType(), encoder.encode(name, encoding.toString())));
         }
     }
 

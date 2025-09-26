@@ -516,8 +516,7 @@ public class ApacheMultipartParser extends DataParser {
 	public Map<String, String[]> parse(Http.Request request, InputStream body) {
 		Map<String, String[]> result = new HashMap<>();
 		try {
-			FileItemIteratorImpl iter = new FileItemIteratorImpl(body, request.headers.get("content-type").value(),
-				request.encoding);
+			FileItemIteratorImpl iter = new FileItemIteratorImpl(body, request.headers.get("content-type").value(), request.encoding);
 			while (iter.hasNext()) {
 				FileItemInput item = iter.next();
 				FileItem fileItem = new AutoFileItem(item);
@@ -535,7 +534,7 @@ public class ApacheMultipartParser extends DataParser {
 					}
 					if (fileItem.isFormField()) {
 						// must resolve encoding
-						String _encoding = request.encoding; // this is our default
+						Charset _encoding = request.encoding; // this is our default
 						String _contentType = fileItem.getContentType();
 						if (_contentType != null) {
 							HTTP.ContentTypeWithEncoding contentTypeEncoding = HTTP.parseContentType(_contentType);
@@ -544,7 +543,7 @@ public class ApacheMultipartParser extends DataParser {
 							}
 						}
 
-						putMapEntry(result, fileItem.getFieldName(), (_encoding != null) ? fileItem.getString(java.nio.charset.Charset.forName(_encoding)) : fileItem.getString());
+						putMapEntry(result, fileItem.getFieldName(), (_encoding != null) ? fileItem.getString(_encoding) : fileItem.getString());
 					} else {
 						@SuppressWarnings("unchecked")
 						List<Upload> uploads = (List<Upload>) request.args.computeIfAbsent("__UPLOADS", k -> new ArrayList<>());
@@ -1005,7 +1004,7 @@ public class ApacheMultipartParser extends DataParser {
 		 * @throws IOException
 		 *             An I/O error occurred.
 		 */
-		FileItemIteratorImpl(InputStream input, String contentType, String charEncoding) throws FileUploadException, IOException {
+		FileItemIteratorImpl(InputStream input, String contentType, Charset charEncoding) throws FileUploadException, IOException {
 
 			if ((null == contentType) || (!contentType.toLowerCase().startsWith(MULTIPART))) {
 				throw new InvalidContentTypeException("the request doesn't contain a " + MULTIPART_FORM_DATA + " or " + MULTIPART_MIXED

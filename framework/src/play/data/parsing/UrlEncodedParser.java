@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -28,12 +29,8 @@ public class UrlEncodedParser extends DataParser {
     boolean forQueryString = false;
     
     public static Map<String, String[]> parse(Http.Request request, String urlEncoded) {
-        try {
-            String encoding = request.encoding;
-            return new UrlEncodedParser().parse(request, new ByteArrayInputStream(urlEncoded.getBytes( encoding )));
-        } catch (UnsupportedEncodingException ex) {
-            throw new UnexpectedException(ex);
-        }
+        Charset encoding = request.encoding;
+        return new UrlEncodedParser().parse(request, new ByteArrayInputStream(urlEncoded.getBytes( encoding )));
     }
     
     public static Map<String, String[]> parseQueryString(Http.Request request, InputStream is) {
@@ -45,7 +42,7 @@ public class UrlEncodedParser extends DataParser {
     @Override
     public Map<String, String[]> parse(Http.Request request, InputStream is) {
         // Encoding is either retrieved from contentType or it is the default encoding
-        String encoding = request.encoding;
+        Charset encoding = request.encoding;
         try {
             Map<String, String[]> params = new LinkedHashMap<>();
             ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -100,7 +97,7 @@ public class UrlEncodedParser extends DataParser {
             }
 
             // Second phase - look for _charset_ param and do the encoding
-            String charset = encoding;
+            Charset charset = encoding;
             if (params.containsKey("_charset_")) {
                 // The form contains a _charset_ param - When this is used together
                 // with accept-charset, we can use _charset_ to extract the encoding.
@@ -110,7 +107,7 @@ public class UrlEncodedParser extends DataParser {
                 // Must be sure the providedCharset is a valid encoding..
                 try {
                     "test".getBytes(providedCharset);
-                    charset = providedCharset; // it works..
+                    charset = Charset.forName(providedCharset); // it works..
                 } catch (Exception e) {
                     Logger.debug(e, "Got invalid _charset_ in form: " + providedCharset);
                     // lets just use the default one..

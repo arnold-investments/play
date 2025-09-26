@@ -7,6 +7,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -195,16 +196,13 @@ public class JavaExtensions {
     }
 
     public static String urlEncode(Http.Response response, String entity) {
-        try {
-            String encoding = play.Play.defaultWebEncoding;
-            if (response != null) {
-                encoding = response.encoding;
-            }
-            return URLEncoder.encode(entity, encoding);
-        } catch (UnsupportedEncodingException e) {
-            Logger.error(e, entity);
+        Charset encoding = play.Play.defaultWebEncoding;
+
+        if (response != null) {
+            encoding = response.encoding;
         }
-        return entity;
+
+        return URLEncoder.encode(entity, encoding);
     }
 
     public static String formatSize(Long bytes) {

@@ -788,7 +788,7 @@ public class WS extends PlayPlugin {
          *            string charset encoding
          * @return the body of the http response
          */
-        public abstract String getString(String encoding);
+        public abstract String getString(Charset encoding);
 
         /**
          * Parse the response string as a query string.

@@ -38,6 +38,7 @@ import play.vfs.VirtualFile;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 import java.util.*;
@@ -694,23 +695,20 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         nettyResponse.headers().set(CONTENT_TYPE, (MimeTypes.getContentType(context.getResponse(), "404." + format, "text/plain")));
 
         String errorHtml = TemplateLoader.load("errors/404." + format).render(context, binding);
-        try {
-            byte[] bytes = errorHtml.getBytes(context.getResponse().encoding);
-            ChannelBuffer buf = ChannelBuffers.copiedBuffer(bytes);
-            setContentLength(nettyResponse, bytes.length);
-            nettyResponse.setContent(buf);
-            ChannelFuture writeFuture = ctx.getChannel().write(nettyResponse);
-            writeFuture.addListener(ChannelFutureListener.CLOSE);
-        } catch (UnsupportedEncodingException fex) {
-            Logger.error(fex, "(encoding ?)");
-        }
+
+        byte[] bytes = errorHtml.getBytes(context.getResponse().encoding);
+        ChannelBuffer buf = ChannelBuffers.copiedBuffer(bytes);
+        setContentLength(nettyResponse, bytes.length);
+        nettyResponse.setContent(buf);
+        ChannelFuture writeFuture = ctx.getChannel().write(nettyResponse);
+        writeFuture.addListener(ChannelFutureListener.CLOSE);
+
         if (Logger.isTraceEnabled()) {
             Logger.trace("serve404: end");
         }
     }
 
     protected static Map<String, Object> getBindingForErrors(Context context, Exception e, boolean isError) {
-
         Map<String, Object> binding = new HashMap<>();
         if (!isError) {
             binding.put("result", e);
@@ -722,6 +720,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         binding.put("flash", context.getFlash());
         binding.put("params", context.getParams());
         binding.put("play", new Play());
+
         try {
             binding.put("errors", context.getValidation().errors());
         } catch (Exception ex) {
@@ -745,7 +744,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         Request request = context.getRequest();
         Response response = context.getResponse();
 
-        String encoding = response.encoding;
+        Charset encoding = response.encoding;
 
         try {
             if (!(e instanceof PlayException)) {
@@ -796,17 +795,14 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
             } catch (Throwable ex) {
                 Logger.error(e, "Internal Server Error (500) for request %s", request.method + " " + request.url);
                 Logger.error(ex, "Error during the 500 response generation");
-                try {
-                    String errorHtml = "Internal Error (check logs)";
-                    byte[] bytes = errorHtml.getBytes(encoding);
-                    ChannelBuffer buf = ChannelBuffers.copiedBuffer(bytes);
-                    setContentLength(nettyResponse, bytes.length);
-                    nettyResponse.setContent(buf);
-                    ChannelFuture writeFuture = ctx.getChannel().write(nettyResponse);
-                    writeFuture.addListener(ChannelFutureListener.CLOSE);
-                } catch (UnsupportedEncodingException fex) {
-                    Logger.error(fex, "(encoding ?)");
-                }
+
+                String errorHtml = "Internal Error (check logs)";
+                byte[] bytes = errorHtml.getBytes(encoding);
+                ChannelBuffer buf = ChannelBuffers.copiedBuffer(bytes);
+                setContentLength(nettyResponse, bytes.length);
+                nettyResponse.setContent(buf);
+                ChannelFuture writeFuture = ctx.getChannel().write(nettyResponse);
+                writeFuture.addListener(ChannelFutureListener.CLOSE);
             }
         } catch (Throwable exxx) {
             try {

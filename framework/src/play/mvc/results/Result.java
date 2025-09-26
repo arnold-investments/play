@@ -4,6 +4,8 @@ import play.mvc.Context;
 import play.mvc.Http;
 import play.utils.FastRuntimeException;
 
+import java.nio.charset.Charset;
+
 /**
  * Result support
  */
@@ -28,7 +30,7 @@ public abstract class Result extends FastRuntimeException {
      * 
      * @return The encoding of the response
      */
-    protected String getEncoding(Http.Response response) {
+    protected Charset getEncoding(Http.Response response) {
         return response.encoding;
     }
 

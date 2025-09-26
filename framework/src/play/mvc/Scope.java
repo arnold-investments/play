@@ -16,6 +16,7 @@ import play.utils.Utils;
 
 import java.lang.annotation.Annotation;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.util.*;
 
 /**
@@ -421,9 +422,9 @@ public class Scope {
             }
         }
 
-        public String urlEncode(Http.Response response) {
+        public Charset urlEncode(Http.Response response) {
             checkAndParse();
-            String encoding = response.encoding;
+            Charset encoding = response.encoding;
             StringBuilder ue = new StringBuilder();
             for (String key : data.keySet()) {
                 if (key.equals("body")) {
@@ -438,7 +439,7 @@ public class Scope {
                     }
                 }
             }
-            return ue.toString();
+            return Charset.forName(ue.toString());
         }
 
         public void flash(Flash flash, String... params) {

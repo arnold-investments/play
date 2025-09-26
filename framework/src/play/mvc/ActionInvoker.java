@@ -9,6 +9,7 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -256,7 +257,7 @@ public class ActionInvoker {
         context.getParams().__mergeWith(context.getRequest().routeArgs);
 
         // add parameters from the URI query string
-        String encoding = context.getRequest().encoding;
+        Charset encoding = context.getRequest().encoding;
         context.getParams()
             ._mergeWith(UrlEncodedParser.parseQueryString(context.getRequest(), new ByteArrayInputStream(context.getRequest().querystring.getBytes(encoding))));
 

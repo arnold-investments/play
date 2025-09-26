@@ -1,13 +1,12 @@
 package play.test;
 
-import org.asynchttpclient.FluentCaseInsensitiveStringsMap;
-import org.asynchttpclient.multipart.FilePart;
-import org.asynchttpclient.multipart.MultipartBody;
-import org.asynchttpclient.multipart.MultipartUtils;
-import org.asynchttpclient.multipart.Part;
-import org.asynchttpclient.multipart.StringPart;
-import java.net.URI;
-import java.net.URISyntaxException;
+
+import io.netty.handler.codec.http.EmptyHttpHeaders;
+import org.asynchttpclient.request.body.multipart.FilePart;
+import org.asynchttpclient.request.body.multipart.MultipartBody;
+import org.asynchttpclient.request.body.multipart.MultipartUtils;
+import org.asynchttpclient.request.body.multipart.Part;
+import org.asynchttpclient.request.body.multipart.StringPart;
 import org.junit.Before;
 import play.Invoker;
 import play.Invoker.InvocationContext;
@@ -28,10 +27,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.channels.Channels;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -204,7 +203,7 @@ public abstract class FunctionalTest extends BaseTest {
         List<Part> parts = new ArrayList<>();
 
         for (String key : parameters.keySet()) {
-            StringPart stringPart = new StringPart(key, parameters.get(key), request.contentType, Charset.forName(request.encoding));
+            StringPart stringPart = new StringPart(key, parameters.get(key), request.contentType, request.encoding);
             parts.add(stringPart);
         }
 
@@ -216,22 +215,24 @@ public abstract class FunctionalTest extends BaseTest {
             }
         }
 
-        MultipartBody requestEntity;
         /*
          * ^1 MultipartBody::read is not working (if parts.isEmpty() == true) byte[] array = null;
          **/
         _ByteArrayOutputStream baos;
-        try {
-            requestEntity = MultipartUtils.newMultipartBody(parts, new FluentCaseInsensitiveStringsMap());
+        try (MultipartBody requestEntity= MultipartUtils.newMultipartBody(parts, EmptyHttpHeaders.INSTANCE)){
             request.headers.put("content-type", new Http.Header("content-type", requestEntity.getContentType()));
+
             long contentLength = requestEntity.getContentLength();
+
             if (contentLength < Integer.MIN_VALUE || contentLength > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException(contentLength + " cannot be cast to int without changing its value.");
             }
+
             // array = new byte[(int) contentLength]; // ^1
             // requestEntity.read(ByteBuffer.wrap(array)); // ^1
+
             baos = new _ByteArrayOutputStream((int) contentLength);
-            requestEntity.transferTo(0, Channels.newChannel(baos));
+            requestEntity.transferTo(Channels.newChannel(baos));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -601,11 +602,8 @@ public abstract class FunctionalTest extends BaseTest {
      */
     public static String getContent(Response response) {
         byte[] data = response.out.toByteArray();
-        try {
-            return new String(data, response.encoding);
-        } catch (UnsupportedEncodingException ex) {
-            throw new RuntimeException(ex);
-        }
+
+		return new String(data, response.encoding);
     }
 
     public static Object renderArgs(String name) {

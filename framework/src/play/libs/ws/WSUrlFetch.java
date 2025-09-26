@@ -1,5 +1,16 @@
 package play.libs.ws;
 
+import play.Logger;
+import play.Play;
+import play.libs.IO;
+import play.libs.WS.HttpResponse;
+import play.libs.WS.WSImpl;
+import play.libs.WS.WSRequest;
+import play.mvc.Http.Header;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,20 +27,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-
-import oauth.signpost.OAuthConsumer;
-import oauth.signpost.basic.DefaultOAuthConsumer;
-import play.Logger;
-import play.Play;
-import play.libs.IO;
-import play.libs.WS.HttpResponse;
-import play.libs.WS.WSImpl;
-import play.libs.WS.WSRequest;
-import play.mvc.Http.Header;
 
 /**
  * Implementation of the WS interface based on Java URL Fetch API. This is to be used for example in Google App Engine,
@@ -317,7 +314,7 @@ public class WSUrlFetch implements WSImpl {
                     is = connection.getInputStream();
                 }
                 if (is != null) {
-                    this.body = IO.readContentAsString(is, getEncoding());
+                    this.body = IO.readContentAsString(is, getEncoding().toString());
                 }
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
@@ -371,12 +368,8 @@ public class WSUrlFetch implements WSImpl {
         }
 
         @Override
-        public String getString(String encoding) {
-            try {
-                return new String(body.getBytes(), encoding);
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
-            }
+        public String getString(Charset encoding) {
+			return new String(body.getBytes(), encoding);
         }
 
         /**
@@ -386,11 +379,7 @@ public class WSUrlFetch implements WSImpl {
          */
         @Override
         public InputStream getStream() {
-            try {
-                return new ByteArrayInputStream(body.getBytes(getEncoding()));
-            } catch (UnsupportedEncodingException e) {
-                throw new RuntimeException(e);
-            }
+			return new ByteArrayInputStream(body.getBytes(getEncoding()));
         }
     }
 }

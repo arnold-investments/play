@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -514,7 +515,7 @@ public class Router {
 
     public static ActionDefinition reverse(Context context, String action, Map<String, Object> args) {
 
-        String encoding = context == null || context.getResponse() == null ? Play.defaultWebEncoding : context.getResponse().encoding;
+        Charset encoding = context == null || context.getResponse() == null ? Play.defaultWebEncoding : context.getResponse().encoding;
 
         if (action.startsWith("controllers.")) {
             action = action.substring(12);
@@ -601,20 +602,15 @@ public class Router {
                             List<Object> vals = (List<Object>) value;
                             path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}", vals.get(0).toString()).replace("$", "\\$");
                         } else {
-                            try {
-                                path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}", URLEncoder.encode(value.toString(), encoding)
-                                        .replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
-                            } catch (UnsupportedEncodingException e) {
-                                path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}",
-                                        value.toString().replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
-                            }
-                            try {
-                                host = host.replaceAll("\\{(<[^>]+>)?" + key + "\\}", URLEncoder.encode(value.toString(), encoding)
-                                        .replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
-                            } catch (UnsupportedEncodingException e) {
-                                host = host.replaceAll("\\{(<[^>]+>)?" + key + "\\}",
-                                        value.toString().replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
-                            }
+                            path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}", URLEncoder.encode(value.toString(), encoding)
+                                    .replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
+                            path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}",
+                                    value.toString().replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
+
+                            host = host.replaceAll("\\{(<[^>]+>)?" + key + "\\}", URLEncoder.encode(value.toString(), encoding)
+                                    .replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
+                            host = host.replaceAll("\\{(<[^>]+>)?" + key + "\\}",
+                                    value.toString().replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
                         }
                     } else if (route.staticArgs.containsKey(key)) {
                         // Do nothing -> The key is static
@@ -626,35 +622,29 @@ public class Router {
                             @SuppressWarnings("unchecked")
                             List<Object> vals = (List<Object>) value;
                             for (Object object : vals) {
-                                try {
-                                    queryString.append(URLEncoder.encode(key, encoding));
-                                    queryString.append("=");
-                                    String objStr = object.toString();
-                                    // Special case to handle jsAction
-                                    // tag
-                                    if (objStr.startsWith(":") && objStr.length() > 1) {
-                                        queryString.append(':');
-                                        objStr = objStr.substring(1);
-                                    }
-                                    queryString.append(URLEncoder.encode(objStr + "", encoding));
-                                    queryString.append("&");
-                                } catch (UnsupportedEncodingException ex) {
-                                }
-                            }
-                        } else {
-                            try {
                                 queryString.append(URLEncoder.encode(key, encoding));
                                 queryString.append("=");
-                                String objStr = value.toString();
-                                // Special case to handle jsAction tag
+                                String objStr = object.toString();
+                                // Special case to handle jsAction
+                                // tag
                                 if (objStr.startsWith(":") && objStr.length() > 1) {
                                     queryString.append(':');
                                     objStr = objStr.substring(1);
                                 }
                                 queryString.append(URLEncoder.encode(objStr + "", encoding));
                                 queryString.append("&");
-                            } catch (UnsupportedEncodingException ex) {
                             }
+                        } else {
+                            queryString.append(URLEncoder.encode(key, encoding));
+                            queryString.append("=");
+                            String objStr = value.toString();
+                            // Special case to handle jsAction tag
+                            if (objStr.startsWith(":") && objStr.length() > 1) {
+                                queryString.append(':');
+                                objStr = objStr.substring(1);
+                            }
+                            queryString.append(URLEncoder.encode(objStr + "", encoding));
+                            queryString.append("&");
                         }
                     }
                 }
@@ -663,7 +653,7 @@ public class Router {
                     qs = qs.substring(0, qs.length() - 1);
                 }
                 ActionDefinition actionDefinition = new ActionDefinition();
-                actionDefinition.url = qs.length() == 0 ? path : path + "?" + qs;
+                actionDefinition.url = qs.isEmpty() ? path : path + "?" + qs;
                 actionDefinition.method = route.method == null || route.method.equals("*") ? "GET" : route.method.toUpperCase();
                 actionDefinition.star = "*".equals(route.method);
                 actionDefinition.action = action;
