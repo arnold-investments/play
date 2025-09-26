@@ -16,7 +16,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import org.jboss.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelHandlerContext;
 import play.Logger;
 
 public class F {
@@ -497,17 +497,17 @@ public class F {
             return new LazyTask(events.peek(), ctx);
         }
 
-        //NOTE: cannot synchronize since events.put may block when system is overloaded.
+        //NOTE: cannot synchronize since events.put may block when the system is overloaded.
         //Normally, I HATE blocking an NIO thread, but to do this correct, we need a token from netty that we can use to disable
-        //the socket reads completely(ie. stop reading from socket when queue is full) as in normal NIO operations if you stop reading
+        //the socket reads completely(i.e., stop reading from socket when queue is full) as in normal NIO operations if you stop reading
         //from the socket, the local nic buffer fills up, then the remote nic buffer fills(the client's nic), and so the client is informed
         //he can't write anymore just yet (or he blocks if he is synchronous).
-        //Then when someone pulls from the queue, the token would be set to enabled allowing to read from nic buffer again and it all propagates
-        //This is normal flow control with NIO but since it is not done properly, this at least fixes the issue where websocket break down and
+        //Then, when someone pulls from the queue, the token would be set to "enabled", allowing to read from the NIC buffer again, and it all propagates.
+        //This is normal flow control with NIO, but since it is not done properly, this at least fixes the issue where websockets break down and
         //skip packets.  They no longer skip packets anymore.
         public void publish(T event) {
             try {
-                // This method blocks if the queue is full(read publish method documentation just above)
+                // This method blocks if the queue is full (read publish method documentation just above)
                 if (events.remainingCapacity() == 10) {
                     Logger.trace("events queue is full! Setting readable to false.");
                     ctx.getChannel().setReadable(false);

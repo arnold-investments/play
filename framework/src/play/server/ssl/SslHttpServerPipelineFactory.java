@@ -1,12 +1,12 @@
 package play.server.ssl;
 
-import static org.jboss.netty.channel.Channels.pipeline;
+import static io.netty.channel.Channels.pipeline;
 
 import javax.net.ssl.SSLEngine;
 
-import org.jboss.netty.channel.ChannelHandler;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.handler.ssl.SslHandler;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelPipeline;
+import io.netty.handler.ssl.SslHandler;
 
 import play.Logger;
 import play.Play;
@@ -15,7 +15,7 @@ import play.server.HttpServerPipelineFactory;
 public class SslHttpServerPipelineFactory extends HttpServerPipelineFactory {
 
     private final String pipelineConfig = Play.configuration.getProperty("play.ssl.netty.pipeline",
-            "play.server.FlashPolicyHandler,org.jboss.netty.handler.codec.http.HttpRequestDecoder,play.server.StreamChunkAggregator,org.jboss.netty.handler.codec.http.HttpResponseEncoder,org.jboss.netty.handler.stream.ChunkedWriteHandler,play.server.ssl.SslPlayHandler");
+            "play.server.FlashPolicyHandler,io.netty.handler.codec.http.HttpRequestDecoder,play.server.StreamChunkAggregator,io.netty.handler.codec.http.HttpResponseEncoder,io.netty.handler.stream.ChunkedWriteHandler,play.server.ssl.SslPlayHandler");
 
     @Override
     public ChannelPipeline getPipeline() throws Exception {

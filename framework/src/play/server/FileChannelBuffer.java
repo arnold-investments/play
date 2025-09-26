@@ -1,9 +1,10 @@
 package play.server;
 
-
-import org.jboss.netty.buffer.*;
-
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.GatheringByteChannel;
@@ -11,14 +12,12 @@ import java.nio.channels.ScatteringByteChannel;
 
 
 /**
- * Useless channel buffer only used to wrap the input stream....
+ * Useless channel buffer only used to wrap the input stream...
  */
 public class FileChannelBuffer extends AbstractChannelBuffer implements WrappedChannelBuffer {
-
     private final FileInputStream is;
 
-
-    public FileChannelBuffer(File file) {
+	public FileChannelBuffer(File file) {
         if (file == null) {
             throw new NullPointerException("file");
         }
@@ -28,7 +27,6 @@ public class FileChannelBuffer extends AbstractChannelBuffer implements WrappedC
             throw new RuntimeException(e);
         }
     }
-
 
     public InputStream getInputStream() {
         return is;

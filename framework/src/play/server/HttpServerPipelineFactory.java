@@ -1,8 +1,8 @@
 package play.server;
 
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPipelineFactory;
+import io.netty.channel.ChannelHandler;
 import play.Play;
 import play.Logger;
 import play.exceptions.UnexpectedException;
@@ -10,13 +10,13 @@ import play.exceptions.UnexpectedException;
 import java.util.Map;
 import java.util.HashMap;
 
-import static org.jboss.netty.channel.Channels.pipeline;
+import static io.netty.channel.Channels.pipeline;
 
 public class HttpServerPipelineFactory implements ChannelPipelineFactory {
 
     protected static final Map<String, Class<?>> classes = new HashMap<>();
 
-    private final String pipelineConfig = Play.configuration.getProperty("play.netty.pipeline", "play.server.FlashPolicyHandler,org.jboss.netty.handler.codec.http.HttpRequestDecoder,play.server.StreamChunkAggregator,org.jboss.netty.handler.codec.http.HttpResponseEncoder,org.jboss.netty.handler.stream.ChunkedWriteHandler,play.server.PlayHandler");
+    private final String pipelineConfig = Play.configuration.getProperty("play.netty.pipeline", "play.server.FlashPolicyHandler,io.netty.handler.codec.http.HttpRequestDecoder,play.server.StreamChunkAggregator,io.netty.handler.codec.http.HttpResponseEncoder,io.netty.handler.stream.ChunkedWriteHandler,play.server.PlayHandler");
 
     @Override
     public ChannelPipeline getPipeline() throws Exception {

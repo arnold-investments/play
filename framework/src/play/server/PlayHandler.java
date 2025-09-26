@@ -1,20 +1,20 @@
 package play.server;
 
 import org.apache.commons.io.IOUtils;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBufferInputStream;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.frame.TooLongFrameException;
-import org.jboss.netty.handler.codec.http.*;
-import org.jboss.netty.handler.codec.http.cookie.Cookie;
-import org.jboss.netty.handler.codec.http.cookie.DefaultCookie;
-import org.jboss.netty.handler.codec.http.cookie.ServerCookieDecoder;
-import org.jboss.netty.handler.codec.http.cookie.ServerCookieEncoder;
-import org.jboss.netty.handler.codec.http.websocketx.*;
-import org.jboss.netty.handler.stream.ChunkedInput;
-import org.jboss.netty.handler.stream.ChunkedStream;
-import org.jboss.netty.handler.stream.ChunkedWriteHandler;
+import io.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ChannelBufferInputStream;
+import io.netty.buffer.ChannelBuffers;
+import io.netty.channel.*;
+import io.netty.handler.codec.frame.TooLongFrameException;
+import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.cookie.Cookie;
+import io.netty.handler.codec.http.cookie.DefaultCookie;
+import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
+import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
+import io.netty.handler.codec.http.websocketx.*;
+import io.netty.handler.stream.ChunkedInput;
+import io.netty.handler.stream.ChunkedStream;
+import io.netty.handler.stream.ChunkedWriteHandler;
 import play.Invoker;
 import play.Invoker.InvocationContext;
 import play.Logger;
@@ -48,8 +48,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
-import static org.jboss.netty.buffer.ChannelBuffers.wrappedBuffer;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
+import static io.netty.buffer.ChannelBuffers.wrappedBuffer;
+import static io.netty.handler.codec.http.HttpHeaders.Names.*;
 
 public class PlayHandler extends SimpleChannelUpstreamHandler {
     private static final String X_HTTP_METHOD_OVERRIDE = "X-HTTP-Method-Override";
@@ -942,7 +942,7 @@ public class PlayHandler extends SimpleChannelUpstreamHandler {
         message.headers().set(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(contentLength));
     }
 
-    static class LazyChunkedInput implements org.jboss.netty.handler.stream.ChunkedInput {
+    static class LazyChunkedInput implements io.netty.handler.stream.ChunkedInput {
 
         private final ConcurrentLinkedQueue<byte[]> nextChunks = new ConcurrentLinkedQueue<>();
         private boolean closed = false;

@@ -1,5 +1,19 @@
 package play.mvc;
 
+import com.google.gson.Gson;
+import io.netty.channel.ChannelHandlerContext;
+import play.Logger;
+import play.Play;
+import play.exceptions.UnexpectedException;
+import play.libs.Codec;
+import play.libs.F;
+import play.libs.F.BlockingEventStream;
+import play.libs.F.Option;
+import play.libs.F.Promise;
+import play.libs.Time;
+import play.utils.HTTP;
+import play.utils.Utils;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,22 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.jboss.netty.channel.ChannelHandlerContext;
-
-import com.google.gson.Gson;
-
-import play.Logger;
-import play.Play;
-import play.exceptions.UnexpectedException;
-import play.libs.Codec;
-import play.libs.F;
-import play.libs.F.BlockingEventStream;
-import play.libs.F.Option;
-import play.libs.F.Promise;
-import play.libs.Time;
-import play.utils.HTTP;
-import play.utils.Utils;
 
 /**
  * HTTP interface

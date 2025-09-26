@@ -1,11 +1,11 @@
 package play.server;
 
 import org.apache.commons.io.IOUtils;
-import org.jboss.netty.buffer.ChannelBufferInputStream;
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.http.HttpChunk;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMessage;
+import io.netty.buffer.ChannelBufferInputStream;
+import io.netty.channel.*;
+import io.netty.handler.codec.http.HttpChunk;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMessage;
 import play.Play;
 
 import java.io.*;

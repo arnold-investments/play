@@ -1,8 +1,8 @@
 package play.server.ssl;
 
-import org.jboss.netty.channel.*;
-import org.jboss.netty.handler.codec.http.*;
-import org.jboss.netty.handler.ssl.SslHandler;
+import io.netty.channel.*;
+import io.netty.handler.codec.http.*;
+import io.netty.handler.ssl.SslHandler;
 import play.Logger;
 import play.mvc.Http.Request;
 import play.server.PlayHandler;
@@ -11,7 +11,7 @@ import play.server.Server;
 import javax.net.ssl.SSLException;
 import java.net.InetSocketAddress;
 
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.*;
+import static io.netty.handler.codec.http.HttpHeaders.Names.*;
 
 public class SslPlayHandler extends PlayHandler {
 
