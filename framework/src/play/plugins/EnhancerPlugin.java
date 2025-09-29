@@ -12,17 +12,17 @@ import play.exceptions.UnexpectedException;
 public class EnhancerPlugin extends PlayPlugin {
 
     protected Enhancer[] defaultEnhancers() {
-        return new Enhancer[] { new PropertiesEnhancer(), new SigEnhancer() };
+        return new Enhancer[] { new SigEnhancer() };
     }
 
     @Override
     public void enhance(ApplicationClass applicationClass) {
         for (Enhancer enhancer : defaultEnhancers()) {
             try {
-                long start = System.currentTimeMillis();
+                long start = System.nanoTime();
                 enhancer.enhanceThisClass(applicationClass);
                 if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sms to apply %s to %s", System.currentTimeMillis() - start, enhancer.getClass().getSimpleName(),
+                    Logger.trace("%sns to apply %s to %s", System.nanoTime() - start, enhancer.getClass().getSimpleName(),
                             applicationClass.name);
                 }
             } catch (Exception e) {

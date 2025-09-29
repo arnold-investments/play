@@ -171,7 +171,7 @@ public class DB {
     public static Connection getConnection(String name) {
         try {
             if (JPA.isEnabled()) {
-                return JPA.em(name).unwrap(SessionImpl.class).getSession().getJdbcConnectionAccess().obtainConnection();
+	            return JPA.em(name).unwrap(SessionImpl.class).doReturningWork(connection -> connection);
             }
 
             Connection localConnection = getLocalConnection(name);

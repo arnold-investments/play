@@ -1,84 +1,243 @@
 package play.server;
 
-import org.apache.commons.io.IOUtils;
-import io.netty.buffer.ChannelBufferInputStream;
+import io.netty.buffer.*;
 import io.netty.channel.*;
-import io.netty.handler.codec.http.HttpChunk;
-import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.*;
+import io.netty.util.ReferenceCountUtil;
+import org.apache.commons.io.IOUtils;
 import play.Play;
 
 import java.io.*;
-import java.util.List;
-import java.util.UUID;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.util.*;
+import static io.netty.handler.codec.http.HttpHeaderNames.*;
+import static io.netty.handler.codec.http.HttpHeaderValues.*;
 
-public class StreamChunkAggregator extends SimpleChannelUpstreamHandler {
+public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObject> {
 
-    private volatile HttpMessage currentMessage;
-    private volatile OutputStream out;
-    private static final int maxContentLength = Integer.valueOf(Play.configuration.getProperty("play.netty.maxContentLength", "-1"));
-    private volatile File file;
+	private static final long RAW_TO_DISK_THRESHOLD = Long.parseLong(
+			Play.configuration.getProperty("play.netty.upload.rawToDiskThresholdBytes", String.valueOf(32L << 20)) // 32MB
+	);
+	private static final int MAX_CONTENT_LENGTH_INT = Integer.parseInt(
+			Play.configuration.getProperty("play.netty.maxContentLength", "-1")
+	);
 
-    /**
-     * Creates a new instance.
-     */
-    public StreamChunkAggregator() { }
+	private HttpRequest currentRequest;
+	private boolean chunked;
+	private CompositeByteBuf memBody;   // small/known-size in-memory aggregate
+	private OutputStream out;           // streaming-to-file
+	private File file;
+	private long rawSoFar;
 
-    @Override
-    public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
-        Object msg = e.getMessage();
-        if (!(msg instanceof HttpMessage) && !(msg instanceof HttpChunk)) {
-            ctx.sendUpstream(e);
-            return;
-        }
+	public StreamChunkAggregator() { super(true); }
 
-        HttpMessage currentMessage = this.currentMessage;
-        File localFile = this.file;
-        if (currentMessage == null) {
-            HttpMessage m = (HttpMessage) msg;
-            if (m.isChunked()) {
-                String localName = UUID.randomUUID().toString();
-                // A chunked message - remove 'Transfer-Encoding' header,
-                // initialize the cumulative buffer, and wait for incoming chunks.
-                List<String> encodings = m.headers().getAll(HttpHeaders.Names.TRANSFER_ENCODING);
-                encodings.remove(HttpHeaders.Values.CHUNKED);
-                if (encodings.isEmpty()) {
-                    m.headers().remove(HttpHeaders.Names.TRANSFER_ENCODING);
-                }
-                this.currentMessage = m;
-                this.file = new File(Play.tmpDir, localName);
-                this.out = new FileOutputStream(file, true);
-            } else {
-                // Not a chunked message - pass through.
-                ctx.sendUpstream(e);
-            }
-        } else {
-            // TODO: If less that threshold then in memory
-            // Merge the received chunk into the content of the current message.
-            HttpChunk chunk = (HttpChunk) msg;
-            if (maxContentLength != -1 && (localFile.length() > (maxContentLength - chunk.getContent().readableBytes()))) {
-                currentMessage.headers().set(HttpHeaders.Names.WARNING, "play.netty.content.length.exceeded");
-            } else {
-                IOUtils.copyLarge(new ChannelBufferInputStream(chunk.getContent()), this.out);
+	@Override
+	protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
+		if (msg instanceof HttpRequest req) {
+			// --- START a new aggregation cycle; DO NOT forward the plain HttpRequest ---
+			resetState();
+			currentRequest = req;
+			chunked = HttpUtil.isTransferEncodingChunked(req);
 
-                if (chunk.isLast()) {
-                    this.out.flush();
-                    this.out.close();
+			final long cl = HttpUtil.getContentLength(req, -1);
 
-                    currentMessage.headers().set(
-                            HttpHeaders.Names.CONTENT_LENGTH,
-                            String.valueOf(localFile.length()));
+			if (msg instanceof FullHttpRequest alreadyFull) {
+				// Upstream already aggregated → just wrap & fire now (it IS a FullHttpRequest)
+				ctx.fireChannelRead(ReferenceCountUtil.retain(alreadyFull));
+				resetState();
+				return;
+			}
 
-                    currentMessage.setContent(new FileChannelBuffer(localFile));
-                    this.out = null;
-                    this.currentMessage = null;
-                    this.file.delete();
-                    this.file = null;
-                    Channels.fireMessageReceived(ctx, currentMessage, e.getRemoteAddress());
-                }
-            }
-        }
+			if (chunked) {
+				stripChunkedFromTransferEncoding(req.headers());
+				startFile();
+			} else if (cl == 0) {
+				// No body expected; we'll emit an empty FullHttpRequest upon LastHttpContent
+			} else if (cl > 0 && cl <= RAW_TO_DISK_THRESHOLD) {
+				memBody = ctx.alloc().compositeBuffer();
+			} else {
+				// unknown size (no CL) or big → stream to file
+				startFile();
+			}
+			return; // wait for HttpContent (including Last)
+		}
 
-    }
+		if (msg instanceof HttpContent part) {
+			if (currentRequest == null) { // out-of-band
+				ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
+				return;
+			}
+
+			final ByteBuf content = part.content();
+			// mirror legacy maxContentLength guard
+			if (MAX_CONTENT_LENGTH_INT != -1) {
+				long have = (file != null ? rawSoFar : (memBody != null ? memBody.readableBytes() : 0));
+				if (have + content.readableBytes() > MAX_CONTENT_LENGTH_INT) {
+					currentRequest.headers().set(WARNING, "play.netty.content.length.exceeded");
+				}
+			}
+
+			if (file != null) {
+				rawSoFar += IOUtils.copyLarge(new ByteBufInputStream(content, true), out);
+			} else if (memBody != null && content.isReadable()) {
+				memBody.addComponent(true, ReferenceCountUtil.retain(content));
+			}
+
+			if (part instanceof LastHttpContent last) {
+				emitFull(ctx, last.trailingHeaders());
+			}
+			return;
+		}
+
+		// Non-http → pass through
+		ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
+	}
+
+	// ==== build & emit ====
+
+	private void emitFull(ChannelHandlerContext ctx, HttpHeaders trailing) throws IOException {
+		FullHttpRequest full;
+		if (file != null) {
+			try { out.flush(); } finally { safeClose(out); out = null; }
+			final long len = file.length();
+			currentRequest.headers().set(CONTENT_LENGTH, String.valueOf(len));
+
+			// File-backed content with cleanup on release.
+			// Use mmap (zero-copy-ish). If you prefer to avoid mmap entirely, see the "NO_MMAP" block below.
+			ByteBuf contentBuf;
+			MappedByteBuffer mbb;
+			try (FileInputStream fis = new FileInputStream(file);
+			     FileChannel ch = fis.getChannel()) {
+				mbb = ch.map(FileChannel.MapMode.READ_ONLY, 0, len);
+				ByteBuf mapped = Unpooled.wrappedBuffer(mbb);
+				File captured = file; // capture BEFORE resetState
+				contentBuf = new CleanupOnReleaseByteBuf(mapped, () -> {
+					CleanerUtil.tryUnmap(mbb);
+					try { if (captured != null) captured.delete(); } catch (Throwable ignore) {}
+				});
+			}
+
+			full = new DefaultFullHttpRequest(
+					currentRequest.protocolVersion(),
+					currentRequest.method(),
+					currentRequest.uri(),
+					contentBuf,
+					copyHeadersWithoutTE(currentRequest.headers()),
+					trailing
+			);
+			full.headers().remove(TRANSFER_ENCODING);
+
+			resetState();
+			ctx.fireChannelRead(full);
+			return;
+		}
+
+		if (memBody != null) {
+			int len = memBody.readableBytes();
+			currentRequest.headers().set(CONTENT_LENGTH, String.valueOf(len));
+			full = new DefaultFullHttpRequest(
+					currentRequest.protocolVersion(),
+					currentRequest.method(),
+					currentRequest.uri(),
+					memBody, // transfer ownership
+					copyHeadersWithoutTE(currentRequest.headers()),
+					trailing
+			);
+			full.headers().remove(TRANSFER_ENCODING);
+
+			currentRequest = null;
+			memBody = null;
+			ctx.fireChannelRead(full);
+			return;
+		}
+
+		// No body (e.g., GET or CL=0). Emit empty FullHttpRequest.
+		full = new DefaultFullHttpRequest(
+				currentRequest.protocolVersion(),
+				currentRequest.method(),
+				currentRequest.uri(),
+				Unpooled.EMPTY_BUFFER,
+				copyHeadersWithoutTE(currentRequest.headers()),
+				trailing
+		);
+		full.headers().remove(TRANSFER_ENCODING);
+		full.headers().set(CONTENT_LENGTH, "0");
+
+		resetState();
+		ctx.fireChannelRead(full);
+	}
+
+	// ==== helpers ====
+
+	private void startFile() throws IOException {
+		file = new File(Play.tmpDir, UUID.randomUUID().toString());
+		out = new FileOutputStream(file, true);
+		rawSoFar = 0L;
+	}
+
+	private static void stripChunkedFromTransferEncoding(HttpHeaders h) {
+		List<String> encs = new ArrayList<>(h.getAll(TRANSFER_ENCODING));
+		encs.removeIf(CHUNKED::contentEqualsIgnoreCase);
+		if (encs.isEmpty()) h.remove(TRANSFER_ENCODING);
+		else h.set(TRANSFER_ENCODING, encs);
+	}
+
+	private static HttpHeaders copyHeadersWithoutTE(HttpHeaders src) {
+		HttpHeaders dst = new DefaultHttpHeaders(false);
+		for (Map.Entry<String, String> e : src) {
+			if (!e.getKey().equalsIgnoreCase(TRANSFER_ENCODING.toString())) {
+				dst.add(e.getKey(), e.getValue());
+			}
+		}
+		return dst;
+	}
+
+	private static void safeClose(Closeable c) { try { if (c != null) c.close(); } catch (IOException ignore) {} }
+
+	private void resetState() {
+		currentRequest = null;
+		chunked = false;
+		safeClose(out);
+		out = null;
+		file = null;
+		rawSoFar = 0L;
+		if (memBody != null && memBody.refCnt() > 0) ReferenceCountUtil.safeRelease(memBody);
+		memBody = null;
+	}
+
+	// --- cleanup-on-release wrapper (deletes file/unmaps when refCnt -> 0) ---
+	private static final class CleanupOnReleaseByteBuf extends WrappedByteBuf {
+		private final Runnable onDeallocate;
+		private volatile boolean done;
+		CleanupOnReleaseByteBuf(ByteBuf delegate, Runnable onDeallocate) { super(delegate); this.onDeallocate = onDeallocate; }
+		@Override public boolean release() { boolean d = super.release(); if (d) runOnce(); return d; }
+		@Override public boolean release(int dec) { boolean d = super.release(dec); if (d) runOnce(); return d; }
+		private void runOnce() { if (done) return; done = true; try { onDeallocate.run(); } catch (Throwable ignore) {} }
+	}
+
+	// --- best-effort unmap for JDK9+; safe no-op if not available ---
+	private static final class CleanerUtil {
+		private static final Method INVOKE_CLEANER;
+		private static final Object UNSAFE;
+		static {
+			Method m = null; Object u = null;
+			try {
+				Class<?> unsafeClz = Class.forName("sun.misc.Unsafe");
+				Field f = unsafeClz.getDeclaredField("theUnsafe");
+				f.setAccessible(true);
+				u = f.get(null);
+				m = unsafeClz.getMethod("invokeCleaner", ByteBuffer.class);
+			} catch (Throwable ignore) { }
+			INVOKE_CLEANER = m; UNSAFE = u;
+		}
+		static void tryUnmap(ByteBuffer bb) {
+			if (INVOKE_CLEANER != null && UNSAFE != null) {
+				try { INVOKE_CLEANER.invoke(UNSAFE, bb); } catch (Throwable ignore) {}
+			}
+		}
+	}
 }
-

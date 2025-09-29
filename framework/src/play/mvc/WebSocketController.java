@@ -3,14 +3,13 @@ package play.mvc;
 import play.mvc.results.WebSocketDisconnect;
 
 public class WebSocketController implements PlayController {
-    protected Context context;
+    protected final Context context;
 
-    @Override
-    public void setContext(Context context) {
-        this.context = context;
-    }
+	public WebSocketController(Context context) {
+		this.context = context;
+	}
 
-    protected static void disconnect() {
+	protected static void disconnect() {
         throw new WebSocketDisconnect();
     }
 }

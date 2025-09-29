@@ -191,8 +191,9 @@ public class WSUrlFetch implements WSImpl {
 
         private HttpURLConnection prepare(URL url, String method) {
             String keyStore = Play.configuration.getProperty("ssl.keyStore", System.getProperty("javax.net.ssl.keyStore"));
-            String keyStorePass = Play.configuration.getProperty("ssl.keyStorePassword",
-                    System.getProperty("javax.net.ssl.keyStorePassword"));
+            String keyStorePass = Play.configuration.getProperty("ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
+	        String trustStore = Play.configuration.getProperty("ssl.trustStore", System.getProperty("javax.net.ssl.trustStore"));
+	        String trustStorePass = Play.configuration.getProperty("ssl.trustStorePassword", System.getProperty("javax.net.ssl.trustStorePassword"));
             Boolean CAValidation = Boolean.parseBoolean(Play.configuration.getProperty("ssl.cavalidation", "true"));
 
             if (this.username != null && this.password != null && this.scheme != null) {
@@ -214,7 +215,7 @@ public class WSUrlFetch implements WSImpl {
                 }
 
                 if (sslCTX == null) {
-                    sslCTX = WSSSLContext.getSslContext(keyStore, keyStorePass, CAValidation);
+                    sslCTX = WSSSLContext.getSslContext(keyStore, keyStorePass, trustStore, trustStorePass, CAValidation);
                 }
             }
 

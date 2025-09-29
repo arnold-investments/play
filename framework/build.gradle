@@ -126,9 +126,6 @@ dependencies {
     // Populate dependencies from dependencies.yml
     addDepsFromYml()
 
-    // Depend on the testrunner module (Gradle project) similar to Ant's module dependency
-    implementation project(':testrunner')
-
     // Keep lib-test jars if any present as additional fallback
     testImplementation fileTree(dir: 'lib-test', include: ['*.jar'])
 }
@@ -153,7 +150,7 @@ tasks.register('syncLib') {
                 String jarName = "${d.name}-${d.version}.jar"
                 File jarFile = new File(libDir, jarName)
                 if (!jarFile.exists()) {
-                    throw new GradleException("Patched dependency missing: ${jarFile}. Place the patched jar in lib or adjust dependencies.yml.")
+                    throw new RuntimeException("Patched dependency missing: ${jarFile}. Place the patched jar in lib or adjust dependencies.yml.")
                 }
                 desired.add(jarFile.name)
             } else {
@@ -186,15 +183,6 @@ tasks.named('compileJava') {
     dependsOn 'syncLib'
 }
 
-// Ensure testrunner compiles after framework lib is synced, as it relies on framework/lib jars
-project(':testrunner') {
-    // Configure after evaluation to ensure tasks exist
-    afterEvaluate {
-        tasks.named('compileJava') {
-            dependsOn rootProject.tasks.named('syncLib')
-        }
-    }
-}
 
 // Generate version file as Ant does (src/play/version and classes/play/version)
 // We avoid mutating src; instead, generate resource to package into the jar.
@@ -230,6 +218,30 @@ jar {
         ], 'Play')
     }
     // Include everything from compiled classes and generated version resource (handled by resources)
+}
+
+// Provide a task to clean library directory of non-patched jars synced previously
+tasks.register('cleanLib', Delete) {
+    group = 'build'
+    description = 'Delete all non-patched JARs from lib directory (keeps *.patched.jar).'
+    delete fileTree(dir: 'lib', include: ['*.jar'], exclude: ['*.patched.jar'])
+}
+
+// Ensure standard clean also performs cleanLib so lib stays in sync
+tasks.named('clean') {
+    dependsOn 'cleanLib'
+}
+
+// Provide Ant-like target to build optional modules using a standalone Gradle build for testrunner
+import org.gradle.api.tasks.GradleBuild
+
+tasks.register('modules', GradleBuild) {
+    group = 'build'
+    description = 'Build optional modules (equivalent to Ant target \"modules\"): testrunner'
+    // Ensure framework is compiled and libs are synced before building testrunner
+    dependsOn 'classes', 'syncLib'
+    dir = file('..\\modules\\testrunner')
+    tasks = ['build']
 }
 
 // Default task mirrors Ant default

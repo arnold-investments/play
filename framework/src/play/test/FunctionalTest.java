@@ -10,7 +10,6 @@ import org.asynchttpclient.request.body.multipart.StringPart;
 import org.junit.Before;
 import play.Invoker;
 import play.Invoker.InvocationContext;
-import play.classloading.enhancers.ControllersEnhancer.ControllerInstrumentation;
 import play.exceptions.JavaExecutionException;
 import play.exceptions.UnexpectedException;
 import play.mvc.ActionInvoker;
@@ -621,7 +620,6 @@ public abstract class FunctionalTest extends BaseTest {
     }
 
     protected static URL reverse() {
-        ControllerInstrumentation.stopActionCall();
         ActionDefinition actionDefinition = new ActionDefinition();
         Controller._currentReverse.set(actionDefinition);
         return new URL(actionDefinition);

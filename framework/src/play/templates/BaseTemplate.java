@@ -47,12 +47,12 @@ public abstract class BaseTemplate extends Template {
 
     public boolean loadFromCache() {
         try {
-            long start = System.currentTimeMillis();
+            long start = System.nanoTime();
             byte[] bc = BytecodeCache.getBytecode(name, source);
             if (bc != null) {
                 directLoad(bc);
                 if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sms to load template %s from cache", System.currentTimeMillis() - start, name);
+                    Logger.trace("%sns to load template %s from cache", System.nanoTime() - start, name);
                 }
                 return true;
             }

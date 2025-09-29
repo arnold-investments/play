@@ -14,55 +14,61 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
 public class WSSSLContext {
-    public static SSLContext getSslContext(String keyStore, String keyStorePass, Boolean CAValidation) {
-        SSLContext sslCTX = null;
+	public static SSLContext getSslContext(String keyStore, String keyStorePass,
+	                                       String trustStore, String trustStorePass,
+	                                       boolean CAValidation) {
+		try {
+			KeyManager[] keyManagers = null;
+			if (keyStore != null && !keyStore.isEmpty()) {
+				KeyStore ks = KeyStore.getInstance("JKS");
+				try (InputStream in = new FileInputStream(keyStore)) {
+					ks.load(in, keyStorePass.toCharArray());
+				}
+				KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+				kmf.init(ks, keyStorePass.toCharArray());
+				keyManagers = kmf.getKeyManagers();
+			}
 
-        try {
-            // Keystore
-            InputStream kss = new FileInputStream(keyStore);
-            char[] storePass = keyStorePass.toCharArray();
-            KeyStore ks = KeyStore.getInstance("JKS");
-            ks.load(kss, storePass);
+			TrustManager[] trustManagers;
+			if (!CAValidation) {
+				trustManagers = new TrustManager[]{
+						new X509TrustManager() {
+							@Override
+							public void checkClientTrusted(X509Certificate[] chain, String authType) {
+								// trust all
+							}
 
-            // Keymanager
-            char[] certPwd = keyStorePass.toCharArray();
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-            kmf.init(ks, certPwd);
-            KeyManager[] keyManagers = kmf.getKeyManagers();
+							@Override
+							public void checkServerTrusted(X509Certificate[] chain, String authType) {
+								// trust all
+							}
 
-            // Trustmanager
-            TrustManager[] trustManagers = null;
-            if (CAValidation == true) {
-                TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
-                tmf.init(ks);
-                trustManagers = tmf.getTrustManagers();
-            } else {
-                trustManagers = new TrustManager[]{
-                        new X509TrustManager() {
-                            @Override
-                            public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-                            }
+							@Override
+							public X509Certificate[] getAcceptedIssuers() {
+								return new X509Certificate[0];
+							}
+						}
+				};
+			} else if (trustStore != null && !trustStore.isEmpty()) {
+				KeyStore ts = KeyStore.getInstance("JKS");
+				try (InputStream in = new FileInputStream(trustStore)) {
+					ts.load(in, trustStorePass.toCharArray());
+				}
+				TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+				tmf.init(ts);
+				trustManagers = tmf.getTrustManagers();
+			} else {
+				// Use JVM defaults (system cacerts)
+				TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+				tmf.init((KeyStore) null);
+				trustManagers = tmf.getTrustManagers();
+			}
 
-                            @Override
-                            public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-                            }
-
-                            @Override
-                            public X509Certificate[] getAcceptedIssuers() {
-                                return null;
-                            }
-                        }
-                };
-            }
-
-            SecureRandom secureRandom = new SecureRandom();
-
-            // SSL context
-            sslCTX = SSLContext.getInstance("TLS");
-            sslCTX.init(keyManagers, trustManagers, secureRandom);
-        } catch (Exception e) {
-            throw new RuntimeException("Error setting SSL context " + e.toString());
-        }
-        return sslCTX;
-    }
+			SSLContext ctx = SSLContext.getInstance("TLS");
+			ctx.init(keyManagers, trustManagers, new SecureRandom());
+			return ctx;
+		} catch (Exception e) {
+			throw new RuntimeException("Error setting SSL context " + e, e);
+		}
+	}
 }

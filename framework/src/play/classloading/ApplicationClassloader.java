@@ -1,8 +1,16 @@
 package play.classloading;
 
-import static java.util.Collections.unmodifiableList;
-import static java.util.Collections.unmodifiableMap;
-import static org.apache.commons.io.IOUtils.closeQuietly;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import play.Logger;
+import play.Play;
+import play.cache.Cache;
+import play.classloading.ApplicationClasses.ApplicationClass;
+import play.classloading.hash.ClassStateHashCreator;
+import play.exceptions.RestartNeededException;
+import play.exceptions.UnexpectedException;
+import play.libs.IO;
+import play.vfs.VirtualFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,8 +18,6 @@ import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.instrument.ClassDefinition;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
@@ -38,22 +44,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
 
-import play.Logger;
-import play.Play;
-import play.cache.Cache;
-import play.classloading.ApplicationClasses.ApplicationClass;
-import play.classloading.hash.ClassStateHashCreator;
-import play.exceptions.RestartNeededException;
-import play.exceptions.UnexpectedException;
-import play.libs.IO;
-import play.vfs.VirtualFile;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
+import static org.apache.commons.io.IOUtils.closeQuietly;
 
 /**
  * The application classLoader. Load the classes from the application Java sources files.
@@ -63,7 +60,7 @@ public class ApplicationClassloader extends ClassLoader {
     private final ClassStateHashCreator classStateHashCreator = new ClassStateHashCreator();
 
     /**
-     * A representation of the current state of the ApplicationClassloader. It gets a new value each time the state of
+     * The current state of the ApplicationClassloader. It gets a new value each time the state of
      * the classloader changes.
      */
     public ApplicationClassloaderState currentState = new ApplicationClassloaderState();
@@ -153,7 +150,7 @@ public class ApplicationClassloader extends ClassLoader {
             }
         }
 
-        long start = System.currentTimeMillis();
+        long start = System.nanoTime();
         ApplicationClass applicationClass = Play.classes.getApplicationClass(name);
         if (applicationClass != null) {
             if (applicationClass.isDefinable()) {
@@ -180,7 +177,7 @@ public class ApplicationClassloader extends ClassLoader {
                 }
 
                 if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sms to load class %s from cache", System.currentTimeMillis() - start, name);
+                    Logger.trace("%sns to load class %s from cache", System.nanoTime() - start, name);
                 }
 
                 return applicationClass.javaClass;
@@ -196,7 +193,7 @@ public class ApplicationClassloader extends ClassLoader {
                 }
 
                 if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sms to load class %s", System.currentTimeMillis() - start, name);
+                    Logger.trace("%sns to load class %s", System.nanoTime() - start, name);
                 }
 
                 return applicationClass.javaClass;
@@ -504,23 +501,20 @@ public class ApplicationClassloader extends ClassLoader {
         }
 
         // Now check for file modification
-        List<ApplicationClass> modifieds = new ArrayList<>();
+        List<ApplicationClass> modifiedClasses = new ArrayList<>();
         for (ApplicationClass applicationClass : Play.classes.all()) {
             if (applicationClass.timestamp < applicationClass.javaFile.lastModified()) {
                 applicationClass.refresh();
-                modifieds.add(applicationClass);
+                modifiedClasses.add(applicationClass);
             }
         }
 
-        Set<ApplicationClass> modifiedWithDependencies = new HashSet<>(modifieds);
-        if (!modifieds.isEmpty()) {
-            modifiedWithDependencies.addAll(Play.pluginCollection.onClassesChange(modifieds));
-        }
+        Set<ApplicationClass> modifiedWithDependencies = new HashSet<>(modifiedClasses);
 
         List<ClassDefinition> newDefinitions = new ArrayList<>();
         boolean dirtySig = false;
         for (ApplicationClass applicationClass : modifiedWithDependencies) {
-	        // show others that we have changed..
+	        // show others that we have changed...
 	        if (applicationClass.compile() == null) {
                 Play.classes.classes.remove(applicationClass.name);
 	        } else {

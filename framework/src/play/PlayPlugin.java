@@ -359,14 +359,6 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
     public void onEvent(String message, Object context) {
     }
 
-    /**
-     * @param modified
-     *            list of modified class
-     * @return List of class
-     */
-    public List<ApplicationClass> onClassesChange(List<ApplicationClass> modified) {
-        return emptyList();
-    }
 
     /**
      * @return List of the template extension

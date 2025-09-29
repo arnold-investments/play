@@ -336,11 +336,11 @@ public class ApplicationClasses {
          * @return the bytes that comprise the class file
          */
         public byte[] compile() {
-            long start = System.currentTimeMillis();
+            long start = System.nanoTime();
             Play.classes.compiler.compile(new String[] { this.name });
 
             if (Logger.isTraceEnabled()) {
-                Logger.trace("%sms to compile class %s", System.currentTimeMillis() - start, name);
+                Logger.trace("%sns to compile class %s", System.nanoTime() - start, name);
             }
 
             return this.javaByteCode;

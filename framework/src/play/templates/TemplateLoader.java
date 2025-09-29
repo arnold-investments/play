@@ -274,13 +274,13 @@ public class TemplateLoader {
 
     private static void scan(List<Template> templates, VirtualFile current) {
         if (!current.isDirectory() && !current.getName().startsWith(".") && !current.getName().endsWith(".scala.html")) {
-            long start = System.currentTimeMillis();
+            long start = System.nanoTime();
             Template template = load(current);
             if (template != null) {
                 try {
                     template.compile();
                     if (Logger.isTraceEnabled()) {
-                        Logger.trace("%sms to load %s", System.currentTimeMillis() - start, current.getName());
+                        Logger.trace("%sns to load %s", System.nanoTime() - start, current.getName());
                     }
                 } catch (TemplateCompilationException e) {
                     Logger.error("Template %s does not compile at line %d", e.getTemplate().name, e.getLineNumber());

@@ -653,19 +653,19 @@ public class Play {
         try {
             Logger.info("Precompiling ...");
             Thread.currentThread().setContextClassLoader(Play.classloader);
-            long start = System.currentTimeMillis();
+            long start = System.nanoTime();
             classloader.getAllClasses();
 
             if (Logger.isTraceEnabled()) {
-                Logger.trace("%sms to precompile the Java stuff", System.currentTimeMillis() - start);
+                Logger.trace("%sns to precompile the Java stuff", System.nanoTime() - start);
             }
 
             if (!lazyLoadTemplates) {
-                start = System.currentTimeMillis();
+                start = System.nanoTime();
                 TemplateLoader.getAllTemplate();
 
                 if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sms to precompile the templates", System.currentTimeMillis() - start);
+                    Logger.trace("%sns to precompile the templates", System.nanoTime() - start);
                 }
             }
             return true;

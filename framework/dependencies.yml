@@ -54,6 +54,26 @@ require:    &allDependencies
     - org.apache.groovy -> groovy-xml 5.0.1
     - org.eclipse.jdt -> org.eclipse.jdt.core 3.44.0-SNAPSHOT
     - org.eclipse.jdt -> ecj 3.44.0-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.core.resources 3.23.100-SNAPSHOT
+#    - org.eclipse.platform -> org.eclipse.core.expressions 3.9.500-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.core.expressions 3.9.500
+#    - org.eclipse.platform -> org.eclipse.core.filesystem 1.11.300-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.core.filesystem 1.11.300
+    - org.eclipse.platform -> org.eclipse.core.runtime 3.34.100-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.osgi 3.23.300-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.equinox.common 3.20.300-SNAPSHOT
+#    - org.eclipse.platform -> org.eclipse.core.jobs 3.15.700-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.core.jobs 3.15.700
+    - org.eclipse.platform -> org.eclipse.equinox.registry 3.12.600-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.equinox.common 3.20.300-SNAPSHOT
+#    - org.eclipse.platform -> org.eclipse.equinox.preferences 3.12.0-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.equinox.preferences 3.12.0
+    - org.eclipse.platform -> org.eclipse.core.contenttype 3.9.800-SNAPSHOT
+#    - org.eclipse.platform -> org.eclipse.equinox.app 1.7.500-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.equinox.app 1.7.500
+    - net.java.dev.jna -> jna 5.18.0
+    - org.eclipse.platform -> org.eclipse.text 3.14.500-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.core.commands 3.12.500-SNAPSHOT
     - org.hibernate -> hibernate-core 7.1.1.Final.patched
     - net.bytebuddy -> byte-buddy 1.17.6
     - jakarta.persistence -> jakarta.persistence-api 3.2.0
@@ -61,11 +81,8 @@ require:    &allDependencies
     - jakarta.transaction -> jakarta.transaction-api 2.0.1
     - org.hibernate.common -> hibernate-commons-annotations 7.0.3.Final
     - org.hibernate.validator -> hibernate-validator 9.0.1.Final
-    - io.smallrye -> jandex 3.2.7
+    - io.smallrye -> jandex 3.5.0
     - org.jboss.logging -> jboss-logging 3.6.1.Final
-#    - org.jboss.spec.javax.transaction -> jboss-transaction-api_1.2_spec 1.1.1.Final
-#    - javax.xml.bind -> jaxb-api 2.3.1
-#    - org.glassfish.jaxb -> jaxb-runtime 2.3.8
     - org.glassfish.jaxb -> jaxb-core 4.0.4
     - org.glassfish.jaxb -> jaxb-runtime 4.0.4
     - com.fasterxml -> classmate 1.7.0
@@ -75,7 +92,21 @@ require:    &allDependencies
     - org.ehcache -> ehcache 3.11.1
     - com.mchange -> mchange-commons-java 0.3.2
     - org.javassist -> javassist 3.30.2-GA
-    - io.netty -> netty-all 4.2.6.Final
+    - io.netty -> netty-common 4.2.6.Final
+    - io.netty -> netty-buffer 4.2.6.Final
+    - io.netty -> netty-resolver 4.2.6.Final
+    - io.netty -> netty-transport 4.2.6.Final
+    - io.netty -> netty-codec 4.2.6.Final
+    - io.netty -> netty-codec-compression 4.2.6.Final
+    - io.netty -> netty-codec-protobuf 4.2.6.Final
+    - io.netty -> netty-codec-marshalling 4.2.6.Final
+    - io.netty -> netty-codec-socks 4.2.6.Final
+    - io.netty -> netty-transport-native-unix-common 4.2.6.Final
+    - io.netty -> netty-codec-base 4.2.6.Final
+    - io.netty -> netty-handler 4.2.6.Final
+    - io.netty -> netty-handler-proxy 4.2.6.Final
+    - io.netty -> netty-codec-http 4.2.6.Final
+    - io.netty -> netty-codec-dns 4.2.6.Final
     - org.postgresql -> postgresql 42.7.7
     - org.slf4j -> slf4j-api 2.0.17
     - org.apache.logging.log4j -> log4j-slf4j2-impl 2.25.1

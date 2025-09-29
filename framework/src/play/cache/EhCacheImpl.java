@@ -6,8 +6,11 @@ import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheManagerBuilder;
 import org.ehcache.config.builders.ResourcePoolsBuilder;
 import org.ehcache.expiry.ExpiryPolicy;
+import org.ehcache.impl.config.copy.DefaultCopierConfiguration;
+import org.ehcache.impl.copy.IdentityCopier;
 import play.Logger;
 
+import java.io.Serializable;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +29,7 @@ import java.util.function.Supplier;
  *
  */
 public class EhCacheImpl implements CacheImpl {
-	public record Element(Object value, int timeToLive){}
+	public record Element(Object value, int timeToLive) implements Serializable {}
 
 	private static final String cacheName = "play";
 	private static EhCacheImpl uniqueInstance;
@@ -76,6 +79,8 @@ public class EhCacheImpl implements CacheImpl {
 						return Duration.ofSeconds(newValue.timeToLive());
 					}
 				})
+
+				.withService(new DefaultCopierConfiguration<>(IdentityCopier.identityCopier(), DefaultCopierConfiguration.Type.VALUE))
 		);
 
 		this.cache = cacheManager.getCache(cacheName, String.class, Element.class);
@@ -92,7 +97,7 @@ public class EhCacheImpl implements CacheImpl {
 
 	@Override
 	public void add(String key, Object value, int expiration) {
-		if (cache.get(key) != null) {
+		if (cache.containsKey(key)) {
 			return;
 		}
 
@@ -152,7 +157,7 @@ public class EhCacheImpl implements CacheImpl {
 
 	@Override
 	public void replace(String key, Object value, int expiration) {
-		if (cache.get(key) == null) {
+		if (cache.containsKey(key)) {
 			return;
 		}
 		Element element = new Element(value, expiration);

@@ -1,10 +1,12 @@
 package play.libs.ws;
 
 import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.ssl.ClientAuth;
-import io.netty.handler.ssl.JdkSslContext;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SupportedCipherSuiteFilter;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.SslProvider;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import org.apache.commons.lang3.NotImplementedException;
 import org.asynchttpclient.AsyncCompletionHandler;
 import org.asynchttpclient.AsyncHttpClient;
@@ -29,6 +31,7 @@ import play.libs.WS.WSRequest;
 import play.mvc.Http.Header;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,63 +71,104 @@ public class WSAsync implements WSImpl {
     private AsyncHttpClient httpClient;
     private static SSLContext sslCTX = null;
 
-    public WSAsync() {
-        String proxyHost = Play.configuration.getProperty("http.proxyHost", System.getProperty("http.proxyHost"));
-        String proxyPort = Play.configuration.getProperty("http.proxyPort", System.getProperty("http.proxyPort"));
-        String proxyUser = Play.configuration.getProperty("http.proxyUser", System.getProperty("http.proxyUser"));
-        String proxyPassword = Play.configuration.getProperty("http.proxyPassword", System.getProperty("http.proxyPassword"));
-        String nonProxyHosts = Play.configuration.getProperty("http.nonProxyHosts", System.getProperty("http.nonProxyHosts"));
-        String userAgent = Play.configuration.getProperty("http.userAgent");
-        String keyStore = Play.configuration.getProperty("ssl.keyStore", System.getProperty("javax.net.ssl.keyStore"));
-        String keyStorePass = Play.configuration.getProperty("ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
-        Boolean CAValidation = Boolean.parseBoolean(Play.configuration.getProperty("ssl.cavalidation", "true"));
+	public WSAsync() {
+		String proxyHost = Play.configuration.getProperty("http.proxyHost", System.getProperty("http.proxyHost"));
+		String proxyPort = Play.configuration.getProperty("http.proxyPort", System.getProperty("http.proxyPort"));
+		String proxyUser = Play.configuration.getProperty("http.proxyUser", System.getProperty("http.proxyUser"));
+		String proxyPassword = Play.configuration.getProperty("http.proxyPassword", System.getProperty("http.proxyPassword"));
+		String nonProxyHosts = Play.configuration.getProperty("http.nonProxyHosts", System.getProperty("http.nonProxyHosts"));
+		String userAgent = Play.configuration.getProperty("http.userAgent");
 
-        DefaultAsyncHttpClientConfig.Builder confBuilder = new DefaultAsyncHttpClientConfig.Builder();
-        if (proxyHost != null) {
-            int proxyPortInt = 0;
-            try {
-                proxyPortInt = Integer.parseInt(proxyPort);
-            } catch (NumberFormatException e) {
-                Logger.error(e,
-                        "Cannot parse the proxy port property '%s'. Check property http.proxyPort either in System configuration or in Play config file.",
-                        proxyPort);
-                throw new IllegalStateException("WS proxy is misconfigured -- check the logs for details");
-            }
-//     public ProxyServer(String host, int port, int securedPort, Realm realm, List<String> nonProxyHosts, ProxyType proxyType) {
-            ProxyServer.Builder proxy = new ProxyServer.Builder(proxyHost, proxyPortInt)
-		            .setRealm(new Realm.Builder(proxyUser, proxyPassword));
-            if (nonProxyHosts != null) {
-                String[] strings = nonProxyHosts.split("\\|");
-                for (String uril : strings) {
-                    proxy.setNonProxyHost(uril);
-                }
-            }
-            confBuilder.setProxyServer(proxy);
-        }
-        if (userAgent != null) {
-            confBuilder.setUserAgent(userAgent);
-        }
+		// Optional key/trust stores (JKS paths)
+		String keyStore = Play.configuration.getProperty("ssl.keyStore", System.getProperty("javax.net.ssl.keyStore"));
+		String keyStorePass = Play.configuration.getProperty("ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
+		String trustStore = Play.configuration.getProperty("ssl.trustStore", System.getProperty("javax.net.ssl.trustStore"));
+		String trustStorePass = Play.configuration.getProperty("ssl.trustStorePassword", System.getProperty("javax.net.ssl.trustStorePassword"));
 
-        if (keyStore != null && !keyStore.equals("")) {
+		boolean caValidation = Boolean.parseBoolean(Play.configuration.getProperty("ssl.cavalidation", "true"));
+		boolean trustAll = Boolean.parseBoolean(Play.configuration.getProperty("ssl.trustAll", "false"));
 
-            Logger.info("Keystore configured, loading from '%s', CA validation enabled : %s", keyStore, CAValidation);
-            if (Logger.isTraceEnabled()) {
-                Logger.trace("Keystore password : %s, SSLCTX : %s", keyStorePass, sslCTX);
-            }
+		// Build client config (ms)
+		DefaultAsyncHttpClientConfig.Builder conf = new DefaultAsyncHttpClientConfig.Builder()
+				.setDisableUrlEncodingForBoundRequests(true)
+				.setConnectTimeout(Duration.ofMillis(10000))
+				.setHandshakeTimeout(10000);
 
-            if (sslCTX == null) {
-                sslCTX = WSSSLContext.getSslContext(keyStore, keyStorePass, CAValidation);
-                confBuilder.setSslContext(new JdkSslContext(sslCTX, true, null, SupportedCipherSuiteFilter.INSTANCE, null, ClientAuth.NONE, null, false));
-            }
-        }
-        // when using raw urls, AHC does not encode the params in url.
-        // this means we can/must encode it(with correct encoding) before
-        // passing it to AHC
-        confBuilder.setDisableUrlEncodingForBoundRequests(true);
-        httpClient = new DefaultAsyncHttpClient(confBuilder.build());
-    }
+		// ---- SSL context (Netty) ----
+		try {
+			SslContextBuilder scb = SslContextBuilder.forClient()
+					.protocols("TLSv1.3", "TLSv1.2");
 
-    @Override
+			if (trustAll && !caValidation) {
+				scb = scb.trustManager(InsecureTrustManagerFactory.INSTANCE);
+			} else if (trustStore != null && !trustStore.isEmpty()) {
+				// Load explicit trust store
+				java.security.KeyStore ts = java.security.KeyStore.getInstance("JKS");
+				try (java.io.InputStream in = new java.io.FileInputStream(trustStore)) {
+					ts.load(in, trustStorePass != null ? trustStorePass.toCharArray() : null);
+				}
+				TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+				tmf.init(ts);
+				scb = scb.trustManager(tmf);
+			} // else: JVM default trust store
+
+			// Optional client certs
+			if (keyStore != null && !keyStore.isEmpty()) {
+				java.security.KeyStore ks = java.security.KeyStore.getInstance("JKS");
+				try (java.io.InputStream in = new java.io.FileInputStream(keyStore)) {
+					ks.load(in, keyStorePass != null ? keyStorePass.toCharArray() : null);
+				}
+				javax.net.ssl.KeyManagerFactory kmf = javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+				kmf.init(ks, keyStorePass != null ? keyStorePass.toCharArray() : new char[0]);
+				scb = scb.keyManager(kmf);
+
+				Logger.info("Keystore configured, loading from '%s', CA validation enabled: %s", keyStore, String.valueOf(caValidation));
+			}
+
+			SslContext nettySsl = scb.build();
+			conf.setSslContext(nettySsl);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to configure SSL", e);
+		}
+
+		// ---- Proxy (optional) ----
+		if (proxyHost != null && !proxyHost.isEmpty()) {
+			int proxyPortInt;
+			try {
+				proxyPortInt = Integer.parseInt(proxyPort);
+			} catch (Exception e) {
+				Logger.error(e, "Cannot parse the proxy port '%s' (property http.proxyPort)", proxyPort);
+				throw new IllegalStateException("WS proxy is misconfigured -- check the logs for details");
+			}
+
+			ProxyServer.Builder proxyBuilder = new ProxyServer.Builder(proxyHost, proxyPortInt);
+
+			if (proxyUser != null && !proxyUser.isEmpty()) {
+				Realm.Builder rb = new Realm.Builder(proxyUser, proxyPassword != null ? proxyPassword : "");
+				rb.setScheme(Realm.AuthScheme.BASIC).setUsePreemptiveAuth(true);
+				proxyBuilder.setRealm(rb.build());
+			}
+
+			if (nonProxyHosts != null && !nonProxyHosts.isEmpty()) {
+				for (String pattern : nonProxyHosts.split("\\|")) {
+					if (!pattern.isEmpty()) {
+						proxyBuilder.setNonProxyHost(pattern);
+					}
+				}
+			}
+
+			conf.setProxyServer(proxyBuilder.build());
+		}
+
+		if (userAgent != null && !userAgent.isEmpty()) {
+			conf.setUserAgent(userAgent);
+		}
+
+		// Build the client
+		httpClient = new DefaultAsyncHttpClient(conf.build());
+	}
+
+	@Override
     public void stop() {
         Logger.trace("Releasing http client connections...");
 		try {

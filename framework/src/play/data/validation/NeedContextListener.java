@@ -13,8 +13,8 @@ public class NeedContextListener implements CheckInitializationListener {
 
 	@Override
 	public void onCheckInitialized(Check check) {
-		if (check instanceof NeedContext neetContextCheck) {
-			neetContextCheck.setContext(context);
+		if (check instanceof NeedContext needContextCheck) {
+			needContextCheck.setContext(context);
 		}
 	}
 }

@@ -2,6 +2,28 @@ package play.mvc;
 
 import com.jamonapi.Monitor;
 import com.jamonapi.MonitorFactory;
+import play.Invoker;
+import play.Logger;
+import play.Play;
+import play.cache.Cache;
+import play.cache.CacheFor;
+import play.data.binding.Binder;
+import play.data.binding.ParamNode;
+import play.data.binding.RootParamNode;
+import play.data.parsing.UrlEncodedParser;
+import play.exceptions.ActionNotFoundException;
+import play.exceptions.JavaExecutionException;
+import play.exceptions.PlayException;
+import play.exceptions.UnexpectedException;
+import play.libs.F;
+import play.mvc.Http.Request;
+import play.mvc.Router.Route;
+import play.mvc.results.NoResult;
+import play.mvc.results.NotFound;
+import play.mvc.results.Result;
+import play.utils.Java;
+import play.utils.Utils;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.InputStream;
@@ -15,29 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import play.Invoker;
-import play.Logger;
-import play.Play;
-import play.cache.Cache;
-import play.cache.CacheFor;
-import play.classloading.enhancers.ControllersEnhancer.ControllerInstrumentation;
-import play.data.binding.Binder;
-import play.data.binding.ParamNode;
-import play.data.binding.RootParamNode;
-import play.data.parsing.UrlEncodedParser;
-import play.exceptions.ActionNotFoundException;
-import play.exceptions.JavaExecutionException;
-import play.exceptions.PlayException;
-import play.exceptions.UnexpectedException;
-import play.inject.Injector;
-import play.libs.F;
-import play.mvc.Http.Request;
-import play.mvc.Router.Route;
-import play.mvc.results.NoResult;
-import play.mvc.results.NotFound;
-import play.mvc.results.Result;
-import play.utils.Java;
-import play.utils.Utils;
 
 /**
  * Invoke an action after an HTTP request.
@@ -241,7 +240,6 @@ public class ActionInvoker {
         }
 
         if (invokeActionResult.actionResult == null) {
-            ControllerInstrumentation.initActionCall();
             inferResult(context, invokeControllerMethod(context, context.getActionMethod()));
         }
     }
@@ -261,7 +259,6 @@ public class ActionInvoker {
         context.getParams()
             ._mergeWith(UrlEncodedParser.parseQueryString(context.getRequest(), new ByteArrayInputStream(context.getRequest().querystring.getBytes(encoding))));
 
-        ControllerInstrumentation.stopActionCall();
         Play.pluginCollection.beforeActionInvocation(context);
 
         // Monitoring
@@ -279,7 +276,6 @@ public class ActionInvoker {
         // @Catch
         Object[] args = new Object[] {throwable};
         List<Method> catches = Java.findAllAnnotatedMethods(getControllerClass(context), Catch.class);
-        ControllerInstrumentation.stopActionCall();
         for (Method mCatch : catches) {
             Class[] exceptions = mCatch.getAnnotation(Catch.class).value();
             if (exceptions.length == 0) {
@@ -331,7 +327,7 @@ public class ActionInvoker {
         Http.Request request = context.getRequest();
 
         List<Method> befores = Java.findAllAnnotatedMethods(getControllerClass(context), Before.class);
-        ControllerInstrumentation.stopActionCall();
+
         for (Method before : befores) {
             String[] unless = before.getAnnotation(Before.class).unless();
             String[] only = before.getAnnotation(Before.class).only();
@@ -367,7 +363,7 @@ public class ActionInvoker {
         Http.Request request = context.getRequest();
 
         List<Method> afters = Java.findAllAnnotatedMethods(getControllerClass(context), After.class);
-        ControllerInstrumentation.stopActionCall();
+
         for (Method after : afters) {
             String[] unless = after.getAnnotation(After.class).unless();
             String[] only = after.getAnnotation(After.class).only();
@@ -419,7 +415,7 @@ public class ActionInvoker {
 
         try {
             List<Method> allFinally = Java.findAllAnnotatedMethods(context.getRequest().controllerClass, Finally.class);
-            ControllerInstrumentation.stopActionCall();
+
             for (Method aFinally : allFinally) {
                 String[] unless = aFinally.getAnnotation(Finally.class).unless();
                 String[] only = aFinally.getAnnotation(Finally.class).only();
@@ -494,8 +490,7 @@ public class ActionInvoker {
         boolean isStatic = Modifier.isStatic(method.getModifiers());
 
         if (!isStatic && request.controllerInstance == null) {
-            request.controllerInstance = Injector.getBeanOfType(request.controllerClass);
-            request.controllerInstance.setContext(context);
+            request.controllerInstance = request.controllerClass.getDeclaredConstructor(Context.class).newInstance(context);
         }
 
         Object[] args = forceArgs != null
@@ -506,11 +501,7 @@ public class ActionInvoker {
             ? null
             : method.getDeclaringClass().isAssignableFrom(request.controllerClass)
                 ? request.controllerInstance
-                : Injector.getBeanOfType(method.getDeclaringClass());
-
-        if (methodClassInstance instanceof PlayController controller) {
-            controller.setContext(context);
-        }
+                : method.getDeclaringClass().getDeclaredConstructor(Context.class).newInstance(context);
 
         return invoke(method, methodClassInstance, args);
     }

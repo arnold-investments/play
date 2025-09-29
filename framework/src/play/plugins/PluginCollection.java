@@ -634,10 +634,10 @@ public class PluginCollection {
     public void enhance(ApplicationClasses.ApplicationClass applicationClass) {
         for (PlayPlugin plugin : getEnabledPlugins()) {
             try {
-                long start = System.currentTimeMillis();
+                long start = System.nanoTime();
                 plugin.enhance(applicationClass);
                 if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sms to apply %s to %s", System.currentTimeMillis() - start, plugin, applicationClass.name);
+                    Logger.trace("%sns to apply %s to %s", System.nanoTime() - start, plugin, applicationClass.name);
                 }
             } catch (Exception e) {
                 throw new UnexpectedException("While applying " + plugin + " on " + applicationClass.name, e);
@@ -645,14 +645,6 @@ public class PluginCollection {
         }
     }
 
-    @Deprecated
-    public List<ApplicationClasses.ApplicationClass> onClassesChange(List<ApplicationClasses.ApplicationClass> modified) {
-        List<ApplicationClasses.ApplicationClass> modifiedWithDependencies = new ArrayList<>();
-        for (PlayPlugin plugin : getEnabledPlugins()) {
-            modifiedWithDependencies.addAll(plugin.onClassesChange(modified));
-        }
-        return modifiedWithDependencies;
-    }
 
     @Deprecated
     public void compileAll(List<ApplicationClasses.ApplicationClass> classes) {

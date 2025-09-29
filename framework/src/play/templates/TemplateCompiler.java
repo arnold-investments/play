@@ -11,10 +11,10 @@ public abstract class TemplateCompiler {
 
     public BaseTemplate compile(BaseTemplate template) {
         try {
-            long start = System.currentTimeMillis();
+            long start = System.nanoTime();
             generate(template);
             if (Logger.isTraceEnabled()) {
-                Logger.trace("%sms to parse template %s", System.currentTimeMillis() - start, template.name);
+                Logger.trace("%sns to parse template %s", System.nanoTime() - start, template.name);
             }
             return template;
         } catch (PlayException e) {

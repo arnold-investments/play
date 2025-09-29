@@ -514,8 +514,9 @@ public class Router {
     }
 
     public static ActionDefinition reverse(Context context, String action, Map<String, Object> args) {
-
-        Charset encoding = context == null || context.getResponse() == null ? Play.defaultWebEncoding : context.getResponse().encoding;
+        Charset encoding = context == null || context.getResponse() == null
+	        ? Play.defaultWebEncoding
+	        : context.getResponse().encoding;
 
         if (action.startsWith("controllers.")) {
             action = action.substring(12);
@@ -597,20 +598,33 @@ public class Router {
                     String key = entry.getKey();
                     Object value = entry.getValue();
                     if (inPathArgs.contains(key) && value != null) {
+						// TODO JB: replace all this regex stuff and comment what it is for
                         if (List.class.isAssignableFrom(value.getClass())) {
                             @SuppressWarnings("unchecked")
                             List<Object> vals = (List<Object>) value;
-                            path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}", vals.get(0).toString()).replace("$", "\\$");
+                            path = path.replaceAll(
+								"\\(\\?<" + key + ">([^)]+)\\)",
+	                            vals.getFirst().toString()
+                            )
+	                            .replace("$", "\\$");
                         } else {
-                            path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}", URLEncoder.encode(value.toString(), encoding)
-                                    .replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
-                            path = path.replaceAll("\\{(<[^>]+>)?" + key + "\\}",
-                                    value.toString().replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
+                            path = path.replaceAll(
+								"\\(\\?<" + key + ">([^)]+)\\)",
+	                            URLEncoder.encode(value.toString(), encoding)
+                                    .replace("$", "\\$")
+		                            .replace("%3A", ":")
+		                            .replace("%40", "@")
+		                            .replace("+", "%20")
+                            );
 
-                            host = host.replaceAll("\\{(<[^>]+>)?" + key + "\\}", URLEncoder.encode(value.toString(), encoding)
-                                    .replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
-                            host = host.replaceAll("\\{(<[^>]+>)?" + key + "\\}",
-                                    value.toString().replace("$", "\\$").replace("%3A", ":").replace("%40", "@").replace("+", "%20"));
+							host = host.replaceAll(
+								"\\(\\?<" + key + ">([^)]+)\\)",
+	                            URLEncoder.encode(value.toString(), encoding)
+                                    .replace("$", "\\$")
+		                            .replace("%3A", ":")
+		                            .replace("%40", "@")
+		                            .replace("+", "%20")
+                            );
                         }
                     } else if (route.staticArgs.containsKey(key)) {
                         // Do nothing -> The key is static
@@ -818,8 +832,6 @@ public class Router {
         Arg hostArg = null;
         public int routesFileLine;
         public String routesFile;
-        static final Pattern customRegexPattern = Pattern.compile("\\{([a-zA-Z_][a-zA-Z_0-9]*)}");
-        static final Pattern argsPattern = Pattern.compile("\\{<([^>]+)>([a-zA-Z_0-9]+)}");
         static final Pattern paramPattern = Pattern.compile("([a-zA-Z_0-9]+):'(.*)'");
 
         public void compute() {
@@ -901,29 +913,56 @@ public class Router {
                     }
 
                 }
-                String patternString = path;
-                patternString = customRegexPattern.matcher(patternString).replaceAll("{<[^/]+>$1}");
-                Matcher matcher = argsPattern.matcher(patternString);
-                while (matcher.find()) {
-                    Arg arg = new Arg();
-                    arg.name = matcher.group(2);
-                    arg.constraint = Pattern.compile(matcher.group(1));
-                    args.add(arg);
-                }
 
-                patternString = argsPattern.matcher(patternString).replaceAll("({$2}$1)");
+                String patternString = path;
+
+				int len = patternString.length();
+				int lastMatched = -1;
+				while((lastMatched = patternString.indexOf("(?<", lastMatched)) != -1) {
+					int nameStartMatch = lastMatched + 3;
+					lastMatched = nameStartMatch + 1;
+					int closingMatch = patternString.indexOf(">", lastMatched);
+
+					if (closingMatch == -1) {
+						continue;
+					}
+
+					int patternStartMatch = closingMatch + 1;
+					lastMatched = patternStartMatch;
+
+					int parenthesesCount = 1;
+					for (int i = patternStartMatch; i < len; i++) {
+						if (patternString.charAt(i) == '(') {
+							parenthesesCount++;
+							continue;
+						}
+
+						if (patternString.charAt(i) == ')') {
+							parenthesesCount--;
+						}
+
+						if (parenthesesCount == 0) {
+							lastMatched = i;
+							break;
+						}
+					}
+
+					// hit the end while parsing
+					if (parenthesesCount != 0) {
+						break;
+					}
+
+					Arg arg = new Arg();
+					arg.name = patternString.substring(nameStartMatch, closingMatch);
+					arg.constraint = Pattern.compile(patternString.substring(patternStartMatch, lastMatched));
+					args.add(arg);
+				}
+
+
                 this.pattern = Pattern.compile(patternString);
+
                 // Action pattern
-                patternString = action;
-                patternString = patternString.replace(".", "[.]");
-                for (Arg arg : args) {
-                    if (patternString.contains("{" + arg.name + "}")) {
-                        patternString = patternString.replace("{" + arg.name + "}",
-                                "({" + arg.name + "}" + arg.constraint.toString() + ")");
-                        actionArgs.add(arg.name);
-                    }
-                }
-                actionPattern = Pattern.compile(patternString, Pattern.CASE_INSENSITIVE);
+                actionPattern = Pattern.compile(action.replace(".", "\\."), Pattern.CASE_INSENSITIVE);
             }
         }
 

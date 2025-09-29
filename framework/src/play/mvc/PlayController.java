@@ -7,5 +7,4 @@ package play.mvc;
  * In most cases, you can extend play.mvc.Controller that contains all needed methods for controllers.
  */
 public interface PlayController {
-	void setContext(Context context);
 }

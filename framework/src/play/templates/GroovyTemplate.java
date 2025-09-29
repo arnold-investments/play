@@ -134,7 +134,7 @@ public class GroovyTemplate extends BaseTemplate {
     public void compile() {
         if (compiledTemplate == null) {
             try {
-                long start = System.currentTimeMillis();
+                long start = System.nanoTime();
 
                 TClassLoader tClassLoader = new TClassLoader();
                 // Let's compile the groovy source
@@ -192,7 +192,7 @@ public class GroovyTemplate extends BaseTemplate {
                 }
 
                 if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sms to compile template %s to %d classes", System.currentTimeMillis() - start, name,
+                    Logger.trace("%sns to compile template %s to %d classes", System.nanoTime() - start, name,
                             groovyClassesForThisTemplate.size());
                 }
 
@@ -286,12 +286,12 @@ public class GroovyTemplate extends BaseTemplate {
         Monitor monitor = null;
         try {
             monitor = MonitorFactory.start(name);
-            long start = System.currentTimeMillis();
+            long start = System.nanoTime();
             t.run();
             monitor.stop();
             monitor = null;
             if (Logger.isTraceEnabled()) {
-                Logger.trace("%sms to render template %s", System.currentTimeMillis() - start, name);
+                Logger.trace("%sns to render template %s", System.nanoTime() - start, name);
             }
         } catch (NoRouteFoundException e) {
             if (e.isSourceAvailable()) {

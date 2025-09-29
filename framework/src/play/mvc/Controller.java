@@ -50,19 +50,19 @@ import play.vfs.VirtualFile;
  */
 public class Controller implements PlayController {
 
-    protected Context context;
+    protected final Context context;
 
-    @Override
-    public void setContext(Context context) {
-        this.context = context;
-    }
 
     /**
      *
      */
     private static ITemplateNameResolver templateNameResolver = null;
 
-    /**
+	public Controller(Context context) {
+		this.context = context;
+	}
+
+	/**
      * Return a 200 OK text/plain response
      *
      * @param text
