@@ -26,7 +26,7 @@ class PlayApplication(object):
         self.path = application_path
         # only parse conf it is exists - if it should be there, it will be caught later 
         # (depends on command)
-        confExists = os.path.exists(os.path.join(self.path, 'conf', 'application.conf')); 
+        confExists = os.path.exists(os.path.join(self.path, 'conf', 'application.conf'))
         if application_path != None and confExists:
             confFolder = os.path.join(application_path, 'conf/')
             try:
@@ -298,8 +298,6 @@ class PlayApplication(object):
         
         if javaVersion.startswith("1.5") or javaVersion.startswith("1.6") or javaVersion.startswith("1.7") or javaVersion.startswith("1.8") or javaVersion.startswith("9") or javaVersion.startswith("10") :
             print("~ ERROR: java version prior to 11 are no longer supported: current version \"%s\" : please update" % javaVersion)
-            
-        java_args.append('-noverify')
 
         java_policy = self.readConf('java.policy')
         if java_policy != '':
@@ -318,7 +316,6 @@ class PlayApplication(object):
 
         if application_mode == 'dev':
             self.check_jpda()
-            java_args.append('-Xdebug')
             if self.jpda_address:
                 jpda_bind = self.jpda_address + ':' + self.jpda_port
             else:

@@ -9,6 +9,9 @@ import java.io.Closeable;
 import java.nio.charset.Charset;
 
 import org.apache.commons.fileupload2.core.ProgressListener;
+import org.apache.commons.fileupload2.jakarta.servlet6.JakartaServletFileUpload;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.output.NullOutputStream;
 
 /**
  * <p> Low level API for processing file uploads.
@@ -535,7 +538,7 @@ public class MultipartStream {
     public int readBodyData(OutputStream output)
             throws MalformedStreamException, IOException {
         try (InputStream inputStream = newInputStream()) {
-            return (int) inputStream.transferTo(output);
+	        return (int) IOUtils.copyLarge(inputStream, output != null ? output : NullOutputStream.INSTANCE, new byte[IOUtils.DEFAULT_BUFFER_SIZE]);
         }
     }
 

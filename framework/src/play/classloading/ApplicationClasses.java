@@ -16,6 +16,7 @@ import play.Logger;
 import play.Play;
 import play.PlayPlugin;
 import play.classloading.enhancers.Enhancer;
+import play.classloading.enhancers.SigEnhancer;
 import play.exceptions.UnexpectedException;
 import play.vfs.VirtualFile;
 
@@ -188,7 +189,7 @@ public class ApplicationClasses {
     }
 
     /**
-     * Represent a application class
+     * Represent an application class
      */
     public static class ApplicationClass {
 
@@ -262,6 +263,8 @@ public class ApplicationClasses {
         static final ClassPool enhanceChecker_classPool = Enhancer.newClassPool();
         static final CtClass ctPlayPluginClass = enhanceChecker_classPool.makeClass(PlayPlugin.class.getName());
 
+		private static SigEnhancer sigEnhancer = new SigEnhancer();
+
         /**
          * Enhance this class
          * 
@@ -269,15 +272,15 @@ public class ApplicationClasses {
          */
         public byte[] enhance() {
             this.enhancedByteCode = this.javaByteCode;
-            if (isClass()) {
 
-                // before we can start enhancing this class we must make sure it is not a PlayPlugin.
+            if (System.getProperty("precompile") == null && isClass()) {
+
+                // before we can start enhancing this class, we must make sure it is not a PlayPlugin.
                 // PlayPlugins can be included as regular java files in a Play-application.
                 // If a PlayPlugin is present in the application, it is loaded when other plugins are loaded.
                 // All plugins must be loaded before we can start enhancing.
                 // This is a problem when loading PlayPlugins bundled as regular app-class since it uses the same
-                // classloader
-                // as the other (soon-to-be) enhanced play-app-classes.
+                // classloader as the other (soon-to-be) enhanced play-app-classes.
                 boolean shouldEnhance = true;
                 try {
                     CtClass ctClass = enhanceChecker_classPool.makeClass(new ByteArrayInputStream(this.enhancedByteCode));
@@ -289,9 +292,19 @@ public class ApplicationClasses {
                 }
 
                 if (shouldEnhance) {
-                    Play.pluginCollection.enhance(this);
+	                try {
+		                long start = System.nanoTime();
+		                sigEnhancer.enhanceThisClass(this);
+		                if (Logger.isTraceEnabled()) {
+			                Logger.trace("%sns to apply %s to %s", System.nanoTime() - start, sigEnhancer.getClass().getSimpleName(),
+					                this.name);
+		                }
+	                } catch (Exception e) {
+		                throw new UnexpectedException("While applying " + sigEnhancer + " on " + this.name, e);
+	                }
                 }
             }
+
             if (System.getProperty("precompile") != null) {
                 try {
                     // emit bytecode to standard class layout as well
@@ -331,7 +344,7 @@ public class ApplicationClasses {
         }
 
         /**
-         * Compile the class from Java source
+         * Compile the class from the Java source
          * 
          * @return the bytes that comprise the class file
          */
@@ -374,7 +387,7 @@ public class ApplicationClasses {
 
     // ~~ Utils
     /**
-     * Retrieve the corresponding source file for a given class name. It handles innerClass too !
+     * Retrieve the corresponding source file for a given class name. It handles innerClass too!
      * 
      * @param name
      *            The fully qualified class name

@@ -184,6 +184,7 @@ public class ApplicationClassloader extends ClassLoader {
             }
             if (applicationClass.javaByteCode != null || applicationClass.compile() != null) {
                 applicationClass.enhance();
+
                 applicationClass.javaClass = defineClass(applicationClass.name, applicationClass.enhancedByteCode, 0,
                         applicationClass.enhancedByteCode.length, protectionDomain);
                 BytecodeCache.cacheBytecode(applicationClass.enhancedByteCode, name, applicationClass.javaSource);

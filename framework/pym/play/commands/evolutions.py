@@ -39,7 +39,6 @@ def execute(**kargs):
     if args.count('--jpda'):
         print("~ Waiting for JPDA client to continue")
         args.remove('--jpda')
-        add_options.append('-Xdebug')
         add_options.append('-Xrunjdwp:transport=dt_socket,address=%s,server=y,suspend=y' % app.jpda_port)
     add_options.extend(args)
     # Remove duplicate memory arg

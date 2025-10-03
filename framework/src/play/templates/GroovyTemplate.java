@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.io.FileUtils;
+import org.codehaus.groovy.GroovyBugError;
 import org.codehaus.groovy.control.CompilationUnit;
 import org.codehaus.groovy.control.CompilationUnit.IGroovyClassOperation;
 import org.codehaus.groovy.control.CompilerConfiguration;
@@ -151,14 +152,18 @@ public class GroovyTemplate extends BaseTemplate {
                 // be replaced using the available public methods. Until Groovy provides this capability
                 // it's necessary to access the compilation unit directly using reflection to replace the
                 // default output operation with the Play Groovy class handler.
+	            // -> old groovy 3.x and some 4.x versions workaround
+	            /*
                 Field phasesF = compilationUnit.getClass().getDeclaredField("phaseOperations");
                 phasesF.setAccessible(true);
                 Collection<?>[] phases = (Collection<?>[]) phasesF.get(compilationUnit);
                 LinkedList<IGroovyClassOperation> output = new LinkedList<>();
                 phases[Phases.OUTPUT] = output;
                 output.add(groovyClassesForThisTemplate::add);
-                
-                compilationUnit.compile();
+	             */
+	            // -> this should be enough for groovy 5.x
+	            compilationUnit.addPhaseOperation(groovyClassesForThisTemplate::add); // bound to OUTPUT
+	            compilationUnit.compile();
                 // ouf
 
                 // Define script classes
@@ -178,7 +183,7 @@ public class GroovyTemplate extends BaseTemplate {
                 }
                 // Cache
                 BytecodeCache.cacheBytecode(sb.toString().getBytes(UTF_8), name, source);
-                compiledTemplate = tClassLoader.loadClass(groovyClassesForThisTemplate.get(0).getName());
+                compiledTemplate = tClassLoader.loadClass(groovyClassesForThisTemplate.getFirst().getName());
                 if (System.getProperty("precompile") != null) {
                     try {
                         // emit bytecode to standard class layout as well

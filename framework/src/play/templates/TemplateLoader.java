@@ -272,6 +272,13 @@ public class TemplateLoader {
         return res;
     }
 
+	public static boolean isCompiled(VirtualFile file) {
+		String fileRelativePath = file.relativePath();
+		String key = getUniqueNumberForTemplateFile(fileRelativePath);
+
+		return templates.containsKey(key);
+	}
+
     private static void scan(List<Template> templates, VirtualFile current) {
         if (!current.isDirectory() && !current.getName().startsWith(".") && !current.getName().endsWith(".scala.html")) {
             long start = System.nanoTime();

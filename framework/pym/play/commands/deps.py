@@ -59,7 +59,6 @@ def execute(**kargs):
     if args.count('--jpda'):
         args.remove('--jpda')
         print("~ Waiting for JPDA client to continue")
-        add_options.append('-Xdebug')
         add_options.append('-Xrunjdwp:transport=dt_socket,address=%s,server=y,suspend=y' % app.jpda_port)
     for arg in args:
         if arg.startswith("-D"):
