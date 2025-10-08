@@ -32,6 +32,7 @@ require:    &allDependencies
     - org.dom4j -> dom4j 2.2.0
     - com.h2database -> h2 1.4.200
     - jakarta.activation -> jakarta.activation-api 2.2.0-M1
+    - org.eclipse.angus -> angus-activation 2.0.2
     - com.sun.mail -> jakarta.mail 2.0.2
     - jakarta.inject -> jakarta.inject-api 2.0.1
     - jakarta.validation -> jakarta.validation-api 3.1.1
