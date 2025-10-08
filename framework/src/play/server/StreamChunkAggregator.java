@@ -53,6 +53,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 	private File file;
 	private long rawSoFar;
 	boolean shouldStartFile = false;
+	boolean shouldAllocMemBody = false;
 
 	public StreamChunkAggregator() { super(true); }
 
@@ -69,6 +70,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 			if (msg instanceof FullHttpRequest alreadyFull) {
 				// Upstream already aggregated → just wrap & fire now (it IS a FullHttpRequest)
 				ctx.fireChannelRead(ReferenceCountUtil.retain(alreadyFull));
+
 				resetState();
 				return;
 			}
@@ -79,14 +81,15 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 			} else if (cl == 0) {
 				// no request body expected; we'll emit an empty FullHttpRequest upon LastHttpContent
 			} else {
-				memBody = ctx.alloc().compositeBuffer();
+				shouldAllocMemBody = true;
 			}
 			return; // wait for HttpContent (including Last)
 		}
 
 		if (msg instanceof HttpContent part) {
 			if (currentRequest == null) { // out-of-band
-				ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
+				ctx.fireChannelRead(ReferenceCountUtil.retain(part));
+
 				return;
 			}
 
@@ -104,6 +107,11 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 				shouldStartFile = false;
 			}
 
+			if (shouldAllocMemBody) {
+				memBody = ctx.alloc().compositeBuffer();
+				shouldAllocMemBody = false;
+			}
+
 			if (file != null) {
 				rawSoFar += IOUtils.copyLarge(new ByteBufInputStream(content, true), out);
 			} else if (memBody != null && content.isReadable()) {
@@ -118,6 +126,24 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 
 		// Non-http → pass through
 		ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
+	}
+
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		resetState();
+		ctx.fireExceptionCaught(cause);
+	}
+
+	@Override
+	public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+		resetState();
+		super.handlerRemoved(ctx);
+	}
+
+	@Override
+	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+		resetState();
+		super.channelInactive(ctx);
 	}
 
 	// ==== build & emit ====
@@ -242,6 +268,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 
 	private void resetState() {
 		shouldStartFile = false;
+		shouldAllocMemBody = false;
 		currentRequest = null;
 		chunked = false;
 		safeClose(out);
@@ -255,7 +282,9 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 		}
 
 		rawSoFar = 0L;
-		if (memBody != null && memBody.refCnt() > 0) ReferenceCountUtil.safeRelease(memBody);
+		if (memBody != null && memBody.refCnt() > 0) {
+			memBody.release();
+		}
 		memBody = null;
 	}
 

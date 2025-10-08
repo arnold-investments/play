@@ -8,11 +8,9 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
@@ -631,8 +629,7 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
             method = nettyRequest.headers().get(X_HTTP_METHOD_OVERRIDE).intern();
         }
 
-		// JB TODO: I think we need to handle StreamChunkAggregator.DiskBackedHttpRequest here for chunked requests
-        InputStream body;
+        InputStream body = null;
 	    ByteBuf b = nettyRequest.content();
 
 	    int max = Integer.parseInt(Play.configuration.getProperty("play.netty.maxContentLength", "-1"));
@@ -641,7 +638,7 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
 		    if (max != -1 && buffer.available() > max) {
 			    body = new ByteArrayInputStream(new byte[0]);
 		    } else {
-			    body = new ByteBufInputStream(b.retainedDuplicate(), true);
+			    body = new ByteBufInputStream(b, false);
 		    }
 	    }
 
