@@ -52,8 +52,8 @@ public class UrlEncodedParser extends DataParser {
                 os.write( buffer, 0, bytesRead);
             }
 
-            String data = new String(os.toByteArray(), encoding);
-            if (data.length() == 0) {
+            String data = os.toString(encoding);
+            if (data.isEmpty()) {
                 //data is empty - can skip the rest
                 return new HashMap<>(0);
             }
@@ -68,7 +68,7 @@ public class UrlEncodedParser extends DataParser {
             // http://www.crazysquirrel.com/computing/general/form-encoding.jspx
             // https://bugzilla.mozilla.org/show_bug.cgi?id=18643
             //
-            // NB: _charset_ must always be used with accept-charset and it must have the same value
+            // NB: _charset_ must always be used with "accept-charset" and it must have the same value
 
             String[] keyValues = data.split("&");
 
@@ -91,7 +91,7 @@ public class UrlEncodedParser extends DataParser {
                 } else {
                     key = keyValue;
                 }
-                if (key.length()>0) {
+                if (!key.isEmpty()) {
                     Utils.Maps.mergeValueInMap(params, key, value);
                 }
             }

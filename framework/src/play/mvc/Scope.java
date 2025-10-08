@@ -301,6 +301,7 @@ public class Scope {
                             _mergeWith(dataParser.parse(request, request.body));
                         }
                     }
+
                     try {
                         request.body.close();
                     } catch (Exception e) {

@@ -286,7 +286,15 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
                 super.run();
             } catch (Exception e) {
                 PlayHandler.serve500(e, ctx, context, nettyRequest);
+            } finally {
+	            // request.body needs to be closed in case it's a ByteBufInputStream, so the ByteBuf refcount is decreased
+	            if (request != null && request.body != null) {
+		            try {
+			            request.body.close();
+		            } catch(Exception ignore) {}
+	            }
             }
+
             if (Logger.isTraceEnabled()) {
                 Logger.trace("run: end");
             }
@@ -638,7 +646,7 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
 		    if (max != -1 && buffer.available() > max) {
 			    body = new ByteArrayInputStream(new byte[0]);
 		    } else {
-			    body = new ByteBufInputStream(b, false);
+			    body = new ByteBufInputStream(b.retainedDuplicate(), true);
 		    }
 	    }
 
