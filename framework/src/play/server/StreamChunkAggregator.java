@@ -42,10 +42,6 @@ import static io.netty.handler.codec.http.HttpHeaderNames.WARNING;
 import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 
 public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObject> {
-
-	private static final long RAW_TO_DISK_THRESHOLD = Long.parseLong(
-			Play.configuration.getProperty("play.netty.upload.rawToDiskThresholdBytes", String.valueOf(32L << 20)) // 32MB
-	);
 	private static final int MAX_CONTENT_LENGTH_INT = Integer.parseInt(
 			Play.configuration.getProperty("play.netty.maxContentLength", "-1")
 	);
@@ -56,6 +52,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 	private OutputStream out;           // streaming-to-file
 	private File file;
 	private long rawSoFar;
+	boolean shouldStartFile = false;
 
 	public StreamChunkAggregator() { super(true); }
 
@@ -78,14 +75,11 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 
 			if (chunked) {
 				stripChunkedFromTransferEncoding(req.headers());
-				startFile();
+				shouldStartFile = true;
 			} else if (cl == 0) {
 				// no request body expected; we'll emit an empty FullHttpRequest upon LastHttpContent
-			} else if (cl > 0 && cl <= RAW_TO_DISK_THRESHOLD) {
-				memBody = ctx.alloc().compositeBuffer();
 			} else {
-				// unknown size (no CL) or big → stream to file
-				startFile();
+				memBody = ctx.alloc().compositeBuffer();
 			}
 			return; // wait for HttpContent (including Last)
 		}
@@ -103,6 +97,11 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 				if (have + content.readableBytes() > MAX_CONTENT_LENGTH_INT) {
 					currentRequest.headers().set(WARNING, "play.netty.content.length.exceeded");
 				}
+			}
+
+			if (shouldStartFile) {
+				startFile();
+				shouldStartFile = false;
 			}
 
 			if (file != null) {
@@ -242,6 +241,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 	private static void safeClose(Closeable c) { try { if (c != null) c.close(); } catch (IOException ignore) {} }
 
 	private void resetState() {
+		shouldStartFile = false;
 		currentRequest = null;
 		chunked = false;
 		safeClose(out);
