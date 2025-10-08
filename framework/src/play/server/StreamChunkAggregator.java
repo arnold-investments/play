@@ -1,21 +1,45 @@
 package play.server;
 
-import io.netty.buffer.*;
-import io.netty.channel.*;
-import io.netty.handler.codec.http.*;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufInputStream;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.buffer.WrappedByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpObject;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 import org.apache.commons.io.IOUtils;
 import play.Play;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.*;
-import static io.netty.handler.codec.http.HttpHeaderNames.*;
-import static io.netty.handler.codec.http.HttpHeaderValues.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
+import static io.netty.handler.codec.http.HttpHeaderNames.TRANSFER_ENCODING;
+import static io.netty.handler.codec.http.HttpHeaderNames.WARNING;
+import static io.netty.handler.codec.http.HttpHeaderValues.CHUNKED;
 
 public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObject> {
 
@@ -56,7 +80,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 				stripChunkedFromTransferEncoding(req.headers());
 				startFile();
 			} else if (cl == 0) {
-				// No body expected; we'll emit an empty FullHttpRequest upon LastHttpContent
+				// no request body expected; we'll emit an empty FullHttpRequest upon LastHttpContent
 			} else if (cl > 0 && cl <= RAW_TO_DISK_THRESHOLD) {
 				memBody = ctx.alloc().compositeBuffer();
 			} else {
@@ -101,6 +125,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 
 	private void emitFull(ChannelHandlerContext ctx, HttpHeaders trailing) throws IOException {
 		FullHttpRequest full;
+
 		if (file != null) {
 			try { out.flush(); } finally { safeClose(out); out = null; }
 			final long len = file.length();
@@ -110,29 +135,39 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 			// Use mmap (zero-copy-ish). If you prefer to avoid mmap entirely, see the "NO_MMAP" block below.
 			ByteBuf contentBuf;
 			MappedByteBuffer mbb;
-			try (FileInputStream fis = new FileInputStream(file);
-			     FileChannel ch = fis.getChannel()) {
+
+			try (
+				FileInputStream fis = new FileInputStream(file);
+			    FileChannel ch = fis.getChannel()
+			) {
 				mbb = ch.map(FileChannel.MapMode.READ_ONLY, 0, len);
 				ByteBuf mapped = Unpooled.wrappedBuffer(mbb);
 				File captured = file; // capture BEFORE resetState
+
 				contentBuf = new CleanupOnReleaseByteBuf(mapped, () -> {
 					CleanerUtil.tryUnmap(mbb);
-					try { if (captured != null) captured.delete(); } catch (Throwable ignore) {}
+					try {
+						if (captured != null) {
+							captured.delete();
+						}
+					} catch (Throwable ignore) {}
 				});
 			}
 
 			full = new DefaultFullHttpRequest(
-					currentRequest.protocolVersion(),
-					currentRequest.method(),
-					currentRequest.uri(),
-					contentBuf,
-					copyHeadersWithoutTE(currentRequest.headers()),
-					trailing
+				currentRequest.protocolVersion(),
+				currentRequest.method(),
+				currentRequest.uri(),
+				contentBuf,
+				copyHeadersWithoutTE(currentRequest.headers()),
+				trailing
 			);
+
 			full.headers().remove(TRANSFER_ENCODING);
 
 			resetState();
 			ctx.fireChannelRead(full);
+
 			return;
 		}
 
@@ -140,13 +175,14 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 			int len = memBody.readableBytes();
 			currentRequest.headers().set(CONTENT_LENGTH, String.valueOf(len));
 			full = new DefaultFullHttpRequest(
-					currentRequest.protocolVersion(),
-					currentRequest.method(),
-					currentRequest.uri(),
-					memBody, // transfer ownership
-					copyHeadersWithoutTE(currentRequest.headers()),
-					trailing
+				currentRequest.protocolVersion(),
+				currentRequest.method(),
+				currentRequest.uri(),
+				memBody, // transfer ownership
+				copyHeadersWithoutTE(currentRequest.headers()),
+				trailing
 			);
+
 			full.headers().remove(TRANSFER_ENCODING);
 
 			currentRequest = null;
@@ -155,15 +191,16 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 			return;
 		}
 
-		// No body (e.g., GET or CL=0). Emit empty FullHttpRequest.
+		// no body (e.g., GET or CL=0). Emit empty FullHttpRequest.
 		full = new DefaultFullHttpRequest(
-				currentRequest.protocolVersion(),
-				currentRequest.method(),
-				currentRequest.uri(),
-				Unpooled.EMPTY_BUFFER,
-				copyHeadersWithoutTE(currentRequest.headers()),
-				trailing
+			currentRequest.protocolVersion(),
+			currentRequest.method(),
+			currentRequest.uri(),
+			Unpooled.EMPTY_BUFFER,
+			copyHeadersWithoutTE(currentRequest.headers()),
+			trailing
 		);
+
 		full.headers().remove(TRANSFER_ENCODING);
 		full.headers().set(CONTENT_LENGTH, "0");
 
@@ -180,19 +217,25 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 	}
 
 	private static void stripChunkedFromTransferEncoding(HttpHeaders h) {
-		List<String> encs = new ArrayList<>(h.getAll(TRANSFER_ENCODING));
-		encs.removeIf(CHUNKED::contentEqualsIgnoreCase);
-		if (encs.isEmpty()) h.remove(TRANSFER_ENCODING);
-		else h.set(TRANSFER_ENCODING, encs);
+		List<String> encodings = new ArrayList<>(h.getAll(TRANSFER_ENCODING));
+		encodings.removeIf(CHUNKED::contentEqualsIgnoreCase);
+
+		if (encodings.isEmpty()) {
+			h.remove(TRANSFER_ENCODING);
+		} else {
+			h.set(TRANSFER_ENCODING, encodings);
+		}
 	}
 
 	private static HttpHeaders copyHeadersWithoutTE(HttpHeaders src) {
 		HttpHeaders dst = new DefaultHttpHeaders(false);
+
 		for (Map.Entry<String, String> e : src) {
 			if (!e.getKey().equalsIgnoreCase(TRANSFER_ENCODING.toString())) {
 				dst.add(e.getKey(), e.getValue());
 			}
 		}
+
 		return dst;
 	}
 
@@ -203,7 +246,14 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 		chunked = false;
 		safeClose(out);
 		out = null;
-		file = null;
+
+		if (file != null) {
+			try {
+				file.delete();
+			} catch (Throwable ignore) {}
+			file = null;
+		}
+
 		rawSoFar = 0L;
 		if (memBody != null && memBody.refCnt() > 0) ReferenceCountUtil.safeRelease(memBody);
 		memBody = null;
@@ -213,10 +263,40 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 	private static final class CleanupOnReleaseByteBuf extends WrappedByteBuf {
 		private final Runnable onDeallocate;
 		private volatile boolean done;
-		CleanupOnReleaseByteBuf(ByteBuf delegate, Runnable onDeallocate) { super(delegate); this.onDeallocate = onDeallocate; }
-		@Override public boolean release() { boolean d = super.release(); if (d) runOnce(); return d; }
-		@Override public boolean release(int dec) { boolean d = super.release(dec); if (d) runOnce(); return d; }
-		private void runOnce() { if (done) return; done = true; try { onDeallocate.run(); } catch (Throwable ignore) {} }
+
+		CleanupOnReleaseByteBuf(ByteBuf delegate, Runnable onDeallocate) {
+			super(delegate);
+			this.onDeallocate = onDeallocate;
+		}
+
+		@Override
+		public boolean release() {
+			boolean d = super.release();
+			if (d) {
+				runOnce();
+			}
+			return d;
+		}
+
+		@Override
+		public boolean release(int dec) {
+			boolean d = super.release(dec);
+			if (d) {
+				runOnce();
+			}
+			return d;
+		}
+
+		private void runOnce() {
+			if (done) {
+				return;
+			}
+
+			done = true;
+			try {
+				onDeallocate.run();
+			} catch (Throwable ignore) {}
+		}
 	}
 
 	// --- best-effort unmap for JDK9+; safe no-op if not available ---
@@ -234,6 +314,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 			} catch (Throwable ignore) { }
 			INVOKE_CLEANER = m; UNSAFE = u;
 		}
+
 		static void tryUnmap(ByteBuffer bb) {
 			if (INVOKE_CLEANER != null && UNSAFE != null) {
 				try { INVOKE_CLEANER.invoke(UNSAFE, bb); } catch (Throwable ignore) {}
