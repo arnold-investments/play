@@ -55,77 +55,94 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 	boolean shouldStartFile = false;
 	boolean shouldAllocMemBody = false;
 
-	public StreamChunkAggregator() { super(true); }
+	public StreamChunkAggregator() { super(false); }
+
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) throws Exception {
-		if (msg instanceof HttpRequest req) {
-			// --- START a new aggregation cycle; DO NOT forward the plain HttpRequest ---
-			resetState();
-			currentRequest = req;
-			chunked = HttpUtil.isTransferEncodingChunked(req);
-
-			final long cl = HttpUtil.getContentLength(req, -1);
-
-			if (msg instanceof FullHttpRequest alreadyFull) {
-				// Upstream already aggregated → just wrap & fire now (it IS a FullHttpRequest)
-				ctx.fireChannelRead(ReferenceCountUtil.retain(alreadyFull));
-
+		boolean release = true;
+		try {
+			if (msg instanceof HttpRequest req) {
+				// --- START a new aggregation cycle; DO NOT forward the plain HttpRequest ---
 				resetState();
-				return;
-			}
+				currentRequest = req;
+				chunked = HttpUtil.isTransferEncodingChunked(req);
 
-			if (chunked) {
-				stripChunkedFromTransferEncoding(req.headers());
-				shouldStartFile = true;
-			} else if (cl == 0) {
-				// no request body expected; we'll emit an empty FullHttpRequest upon LastHttpContent
-			} else {
-				shouldAllocMemBody = true;
-			}
-			return; // wait for HttpContent (including Last)
-		}
+				final long cl = HttpUtil.getContentLength(req, -1);
 
-		if (msg instanceof HttpContent part) {
-			if (currentRequest == null) { // out-of-band
-				ctx.fireChannelRead(ReferenceCountUtil.retain(part));
-
-				return;
-			}
-
-			final ByteBuf content = part.content();
-			// mirror legacy maxContentLength guard
-			if (MAX_CONTENT_LENGTH_INT != -1) {
-				long have = (file != null ? rawSoFar : (memBody != null ? memBody.readableBytes() : 0));
-				if (have + content.readableBytes() > MAX_CONTENT_LENGTH_INT) {
-					currentRequest.headers().set(WARNING, "play.netty.content.length.exceeded");
+				if (msg instanceof FullHttpRequest alreadyFull) {
+					// Upstream already aggregated → just wrap & fire now (it IS a FullHttpRequest)
+					ctx.fireChannelRead(alreadyFull);
+					release = false;
+					resetState();
+					return;
 				}
+
+				if (chunked) {
+					stripChunkedFromTransferEncoding(req.headers());
+					shouldStartFile = true;
+				} else if (cl == 0) {
+					// no request body expected; we'll emit an empty FullHttpRequest upon LastHttpContent
+				} else {
+					shouldAllocMemBody = true;
+				}
+				return; // wait for HttpContent (including Last)
 			}
 
-			if (shouldStartFile) {
-				startFile();
-				shouldStartFile = false;
+			if (msg instanceof HttpContent part) {
+				if (currentRequest == null) { // out-of-band
+					ctx.fireChannelRead(part);
+					release = false;
+					return;
+				}
+
+				final ByteBuf content = part.content();
+				// mirror legacy maxContentLength guard
+				if (MAX_CONTENT_LENGTH_INT != -1) {
+					long have = (file != null ? rawSoFar : (memBody != null ? memBody.readableBytes() : 0));
+					if (have + content.readableBytes() > MAX_CONTENT_LENGTH_INT) {
+						currentRequest.headers().set(WARNING, "play.netty.content.length.exceeded");
+					}
+				}
+
+				if (shouldStartFile) {
+					startFile();
+					shouldStartFile = false;
+				}
+
+				if (shouldAllocMemBody) {
+					if (memBody != null) {
+						System.out.println("memBody != null");
+					}
+
+					memBody = ctx.alloc().compositeBuffer();
+					shouldAllocMemBody = false;
+				}
+
+				if (file != null) {
+					try( ByteBufInputStream in = new ByteBufInputStream(content)) {
+						rawSoFar += IOUtils.copyLarge(in, out);
+					}
+				} else if (memBody != null && content.isReadable()) {
+					memBody.addComponent(true, content);
+					release = false;
+				}
+
+				if (part instanceof LastHttpContent last) {
+					emitFull(ctx, last.trailingHeaders());
+					release = false;
+				}
+				return;
 			}
 
-			if (shouldAllocMemBody) {
-				memBody = ctx.alloc().compositeBuffer();
-				shouldAllocMemBody = false;
+			// Non-http → pass through
+			ctx.fireChannelRead(msg);
+			release = false;
+		} finally {
+			if (release) {
+				ReferenceCountUtil.release(msg);
 			}
-
-			if (file != null) {
-				rawSoFar += IOUtils.copyLarge(new ByteBufInputStream(content, true), out);
-			} else if (memBody != null && content.isReadable()) {
-				memBody.addComponent(true, ReferenceCountUtil.retain(content));
-			}
-
-			if (part instanceof LastHttpContent last) {
-				emitFull(ctx, last.trailingHeaders());
-			}
-			return;
 		}
-
-		// Non-http → pass through
-		ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
 	}
 
 	@Override
@@ -157,7 +174,7 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 			currentRequest.headers().set(CONTENT_LENGTH, String.valueOf(len));
 
 			// File-backed content with cleanup on release.
-			// Use mmap (zero-copy-ish). If you prefer to avoid mmap entirely, see the "NO_MMAP" block below.
+			// Use mmap (zero-copy-ish).
 			ByteBuf contentBuf;
 			MappedByteBuffer mbb;
 
@@ -190,8 +207,8 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 
 			full.headers().remove(TRANSFER_ENCODING);
 
-			resetState();
 			ctx.fireChannelRead(full);
+			resetState();
 
 			return;
 		}
@@ -284,6 +301,10 @@ public class StreamChunkAggregator extends SimpleChannelInboundHandler<HttpObjec
 		rawSoFar = 0L;
 		if (memBody != null && memBody.refCnt() > 0) {
 			memBody.release();
+
+			if (memBody.refCnt() > 0) {
+				System.out.println("memBody.refCnt() > 0 after resetState");
+			}
 		}
 		memBody = null;
 	}

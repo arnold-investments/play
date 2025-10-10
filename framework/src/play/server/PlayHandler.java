@@ -122,9 +122,9 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
             Logger.trace("messageReceived: begin");
         }
 
-        // Http request
-        if (msg instanceof FullHttpRequest nettyRequest) {
-			try {
+		try {
+			// Http request
+			if (msg instanceof FullHttpRequest nettyRequest) {
 				// Websocket upgrade
 				if (HttpHeaderValues.WEBSOCKET.toString().equalsIgnoreCase(nettyRequest.headers().get(HttpHeaderNames.UPGRADE))) {
 					websocketHandshake(ctx, nettyRequest, msg);
@@ -141,43 +141,45 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
 					Response response = context.getResponse();
 					final Request request = parseRequest(ctx, nettyRequest, msg);
 
-					// Buffered in memory output
-					response.out = new ByteArrayOutputStream();
+					boolean closeRequest = true;
 
-					// Direct output (will be set later)
-					response.direct = null;
+					try {
+						// Buffered in memory output
+						response.out = new ByteArrayOutputStream();
 
-					// Streamed output (using response.writeChunk)
-					response.onWriteChunk(result -> writeChunk(request, response, ctx, nettyRequest, result));
+						// Direct output (will be set later)
+						response.direct = null;
 
-					// Raw invocation
-					boolean raw = Play.pluginCollection.rawInvocation(new Context(request, response));
-					if (raw) {
-						copyResponse(ctx, request, response, nettyRequest);
-					} else {
+						// Streamed output (using response.writeChunk)
+						response.onWriteChunk(result -> writeChunk(request, response, ctx, nettyRequest, result));
 
-						// Delegate to the Play framework
-						Invoker.invoke(new NettyInvocation(context, request, response, ctx, nettyRequest, msg));
-
+						// Raw invocation
+						boolean raw = Play.pluginCollection.rawInvocation(new Context(request, response));
+						if (raw) {
+							copyResponse(ctx, request, response, nettyRequest);
+						} else {
+							// Delegate to the Play framework
+							Invoker.invoke(new NettyInvocation(context, request, response, ctx, nettyRequest, msg));
+							closeRequest = false; // NettyInvocation runs in different thread and we don't want to release before it's finished
+						}
+					} finally {
+						if (closeRequest && request != null && request.body != null) {
+							request.body.close();
+						}
 					}
-
 				} catch (Exception ex) {
 					Logger.warn(ex, "Exception on request. serving 500 back");
 					serve500(ex, ctx, context, nettyRequest);
 				}
-			} finally {
-				ReferenceCountUtil.release(nettyRequest);
 			}
-        }
 
-        // Websocket frame
-        if (msg instanceof WebSocketFrame frame) {
-			try {
+			// Websocket frame
+			if (msg instanceof WebSocketFrame frame) {
 				websocketFrameReceived(ctx, frame);
-			} finally {
-				ReferenceCountUtil.release(frame);
 			}
-        }
+		} finally {
+			ReferenceCountUtil.release(msg);
+		}
 
         if (Logger.isTraceEnabled()) {
             Logger.trace("messageReceived: end");
@@ -286,13 +288,6 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
                 super.run();
             } catch (Exception e) {
                 PlayHandler.serve500(e, ctx, context, nettyRequest);
-            } finally {
-	            // request.body needs to be closed in case it's a ByteBufInputStream, so the ByteBuf refcount is decreased
-	            if (request != null && request.body != null) {
-		            try {
-			            request.body.close();
-		            } catch(Exception ignore) {}
-	            }
             }
 
             if (Logger.isTraceEnabled()) {
@@ -338,6 +333,21 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
                 Logger.trace("execute: end");
             }
         }
+
+		@Override
+	    public void _finally() {
+			try {
+				super._finally();
+			} finally {
+				if (request != null && request.body != null) {
+					try {
+						request.body.close();
+					} catch (Exception e) {
+						Logger.error(e, "Error closing request body");
+					}
+				}
+			}
+		}
     }
 
     void saveExceededSizeError(Context context, HttpRequest nettyRequest) {
@@ -638,60 +648,70 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
         }
 
         InputStream body = null;
+
+	    String host = nettyRequest.headers().get(HttpHeaderNames.HOST);
+	    boolean isLoopback = false;
+	    int port = 0;
+	    String domain = null;
+
 	    ByteBuf b = nettyRequest.content();
 
 	    int max = Integer.parseInt(Play.configuration.getProperty("play.netty.maxContentLength", "-1"));
+		try {
+			try (ByteBufInputStream buffer = new ByteBufInputStream(b.retainedDuplicate(), true)) {
+				if (max != -1 && buffer.available() > max) {
+					body = new ByteArrayInputStream(new byte[0]);
+				} else {
+					body = new ByteBufInputStream(b.retainedDuplicate(), true);
+				}
+			}
 
-	    try (ByteBufInputStream buffer = new ByteBufInputStream(b.retainedDuplicate(), true)) {
-		    if (max != -1 && buffer.available() > max) {
-			    body = new ByteArrayInputStream(new byte[0]);
-		    } else {
-			    body = new ByteBufInputStream(b.retainedDuplicate(), true);
-		    }
-	    }
+			try {
+				isLoopback = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress().isLoopbackAddress()
+						&& host.matches("^127\\.0\\.0\\.1:?[0-9]*$");
+			} catch (Exception e) {
+				// ignore it
+			}
 
-        String host = nettyRequest.headers().get(HttpHeaderNames.HOST);
-        boolean isLoopback = false;
-        try {
-            isLoopback = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress().isLoopbackAddress()
-                    && host.matches("^127\\.0\\.0\\.1:?[0-9]*$");
-        } catch (Exception e) {
-            // ignore it
-        }
 
-        int port = 0;
-        String domain = null;
-        if (host == null) {
-            host = "";
-            port = 80;
-            domain = "";
-        }
-        // Check for IPv6 address
-        else if (host.startsWith("[")) {
-            // There is no port
-            if (host.endsWith("]")) {
-                domain = host;
-                port = 80;
-            } else {
-                // There is a port so take from the last colon
-                int portStart = host.lastIndexOf(':');
-                if (portStart > 0 && (portStart + 1) < host.length()) {
-                    domain = host.substring(0, portStart);
-                    port = Integer.parseInt(host.substring(portStart + 1));
-                }
-            }
-        }
-        // Non IPv6 but has port
-        else if (host.contains(":")) {
-            String[] hosts = host.split(":");
-            port = Integer.parseInt(hosts[1]);
-            domain = hosts[0];
-        } else {
-            port = 80;
-            domain = host;
-        }
+			if (host == null) {
+				host = "";
+				port = 80;
+				domain = "";
+			}
+			// Check for IPv6 address
+			else if (host.startsWith("[")) {
+				// There is no port
+				if (host.endsWith("]")) {
+					domain = host;
+					port = 80;
+				} else {
+					// There is a port so take from the last colon
+					int portStart = host.lastIndexOf(':');
+					if (portStart > 0 && (portStart + 1) < host.length()) {
+						domain = host.substring(0, portStart);
+						port = Integer.parseInt(host.substring(portStart + 1));
+					}
+				}
+			}
+			// Non IPv6 but has port
+			else if (host.contains(":")) {
+				String[] hosts = host.split(":");
+				port = Integer.parseInt(hosts[1]);
+				domain = hosts[0];
+			} else {
+				port = 80;
+				domain = host;
+			}
+		} catch(Exception e) {
+			if (body != null) {
+				body.close();
+			}
 
-        boolean secure = false;
+			throw e;
+		}
+
+	    boolean secure = false;
 
         Request request = Request.createRequest(remoteAddress, method, path, querystring, contentType, body, uri, host,
                 isLoopback, port, domain, secure, getHeaders(nettyRequest), getCookies(nettyRequest));
@@ -1178,91 +1198,92 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
             // still lying around
             try {
                 ctx.pipeline().remove("fake-aggregator");
-            } catch (Exception e) {
+            } catch (Exception _) {
             }
         }
-        Http.Request request = parseRequest(ctx, req, msg);
+
+		// RETAINS
+	    Http.Request request = parseRequest(ctx, req, msg);
 
         // Route the websocket request
         request.method = "WS";
 
         Map<String, String> route = Router.route(request.method, request.path);
         if (!route.containsKey("action")) {
-            // No route found to handle this websocket connection
-            ctx.channel().writeAndFlush(new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND))
-		            .addListener(ChannelFutureListener.CLOSE);
-            return;
+	        // No route found to handle this websocket connection
+	        ctx.channel().writeAndFlush(new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND))
+			        .addListener(ChannelFutureListener.CLOSE);
+	        return;
         }
 
         // Inbound
         Http.Inbound inbound = new Http.Inbound(ctx) {
-            @Override
-            public boolean isOpen() {
-                return ctx.channel().isOpen();
-            }
+	        @Override
+	        public boolean isOpen() {
+		        return ctx.channel().isOpen();
+	        }
         };
         channels.put(ctx, inbound);
 
         // Outbound
         Http.Outbound outbound = new Http.Outbound() {
-            final List<ChannelFuture> writeFutures = Collections.synchronizedList(new ArrayList<ChannelFuture>());
-            Promise<Void> closeTask;
+	        final List<ChannelFuture> writeFutures = Collections.synchronizedList(new ArrayList<ChannelFuture>());
+	        Promise<Void> closeTask;
 
-            synchronized void writeAndClose(ChannelFuture writeFuture) {
-                if (!writeFuture.isDone()) {
-                    writeFutures.add(writeFuture);
-                    writeFuture.addListener(cf -> {
-                        writeFutures.remove(cf);
-                        futureClose();
-                    });
-                }
-            }
+	        synchronized void writeAndClose(ChannelFuture writeFuture) {
+		        if (!writeFuture.isDone()) {
+			        writeFutures.add(writeFuture);
+			        writeFuture.addListener(cf -> {
+				        writeFutures.remove(cf);
+				        futureClose();
+			        });
+		        }
+	        }
 
-            void futureClose() {
-                if (closeTask != null && writeFutures.isEmpty()) {
-                    closeTask.invoke(null);
-                }
-            }
+	        void futureClose() {
+		        if (closeTask != null && writeFutures.isEmpty()) {
+			        closeTask.invoke(null);
+		        }
+	        }
 
-            @Override
-            public void send(String data) {
-                if (!isOpen()) {
-                    throw new IllegalStateException("The outbound channel is closed");
-                }
-                writeAndClose(ctx.channel().writeAndFlush(new TextWebSocketFrame(data)));
-            }
+	        @Override
+	        public void send(String data) {
+		        if (!isOpen()) {
+			        throw new IllegalStateException("The outbound channel is closed");
+		        }
+		        writeAndClose(ctx.channel().writeAndFlush(new TextWebSocketFrame(data)));
+	        }
 
-            @Override
-            public void send(byte opcode, byte[] data, int offset, int length) {
-                if (!isOpen()) {
-                    throw new IllegalStateException("The outbound channel is closed");
-                }
+	        @Override
+	        public void send(byte opcode, byte[] data, int offset, int length) {
+		        if (!isOpen()) {
+			        throw new IllegalStateException("The outbound channel is closed");
+		        }
 
-                writeAndClose(ctx.channel().writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(data, offset, length))));
-            }
+		        writeAndClose(ctx.channel().writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(data, offset, length))));
+	        }
 
-            @Override
-            public synchronized boolean isOpen() {
-                return ctx.channel().isOpen() && closeTask == null;
-            }
+	        @Override
+	        public synchronized boolean isOpen() {
+		        return ctx.channel().isOpen() && closeTask == null;
+	        }
 
-            @Override
-            public synchronized void close() {
-                closeTask = new Promise<>();
-                closeTask.onRedeem(completed -> {
-                    writeFutures.clear();
-                    ctx.channel().disconnect();
-                    closeTask = null;
-                });
-                futureClose();
-            }
+	        @Override
+	        public synchronized void close() {
+		        closeTask = new Promise<>();
+		        closeTask.onRedeem(completed -> {
+			        writeFutures.clear();
+			        ctx.channel().disconnect();
+			        closeTask = null;
+		        });
+		        futureClose();
+	        }
         };
-
-        Context context = new Context(request, inbound, outbound);
 
         Logger.trace("invoking");
 
-        Invoker.invoke(new WebSocketInvocation(route, context, ctx, msg));
+	    Context context = new Context(request, inbound, outbound);
+	    Invoker.invoke(new WebSocketInvocation(route, context, ctx, msg));
     }
 
     @Override
@@ -1306,8 +1327,9 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
         public void onException(Throwable e) {
             Logger.error(e, "Internal Server Error in WebSocket (closing the socket) for request %s",
                     context.getRequest().method + " " + context.getRequest().url);
-            ctx.channel().close();
-            super.onException(e);
+
+	        ctx.channel().close();
+	        super.onException(e);
         }
 
         @Override
@@ -1315,5 +1337,14 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
             context.getOutbound().close();
             super.onSuccess();
         }
+
+	    @Override
+	    public void _finally() {
+		    super._finally();
+		    try {
+			    context.getRequest().close();
+		    } catch (Exception _) {
+		    }
+	    }
     }
 }

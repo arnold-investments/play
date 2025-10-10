@@ -165,7 +165,7 @@ public class Http {
     /**
      * An HTTP Request
      */
-    public static class Request implements Serializable {
+    public static class Request implements Serializable, AutoCloseable {
 
         /**
          * Server host
@@ -591,6 +591,13 @@ public class Http {
                 return HTTP.isModified(etag, last, headers.get("if-none-match").value(), headers.get("if-modified-since").value());
             }
         }
+
+	    @Override
+	    public void close() throws Exception {
+		    if (body != null) {
+				body.close();
+		    }
+	    }
     }
 
     /**
