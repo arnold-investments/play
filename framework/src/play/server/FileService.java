@@ -108,7 +108,7 @@ public class FileService  {
 	        // Now send headers and optionally the body
 	        if (!isHead) {
 		        if (channel.isOpen()) {
-			        addWriteFutureLogging(ctx.write(nettyResponse));
+			        addWriteFutureLogging("first", localFile, nettyRequest, ctx.write(nettyResponse));
 
 			        ChannelFuture writeFuture;
 
@@ -117,13 +117,13 @@ public class FileService  {
 				        writeFuture = ctx.writeAndFlush(new HttpChunkedInput(bri));
 			        } else if (zeroCopyPossible) {
 				        // Bypass ONLY the encoder for FileRegion
-				        addWriteFutureLogging(ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength)));
+				        addWriteFutureLogging("zeroCopy", localFile, nettyRequest, ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength)));
 				        writeFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
 			        } else {
 				        writeFuture = ctx.writeAndFlush(new HttpChunkedInput(new ChunkedFile(raf)));
 			        }
 
-					handleWriteFuture(writeFuture, isKeepAlive, raf);
+					handleWriteFuture("finishRegular", localFile, nettyRequest, writeFuture, isKeepAlive, raf);
 		        } else {
 		        	Logger.debug("Try to write on a closed channel[keepAlive:%s]: Remote host may have closed the connection", String.valueOf(isKeepAlive));
 			        IOUtils.closeQuietly(raf);
@@ -134,7 +134,7 @@ public class FileService  {
 		
 		        // HEAD: send headers only (with correct framing) and close the file
 		        if (channel.isOpen()) {
-		        	handleWriteFuture(channel.writeAndFlush(nettyResponse), isKeepAlive, raf);
+		        	handleWriteFuture("head", localFile, nettyRequest, channel.writeAndFlush(nettyResponse), isKeepAlive, raf);
 		        } else {
 		        	Logger.debug("Try to write on a closed channel[keepAlive:%s]: Remote host may have closed the connection", String.valueOf(isKeepAlive));
 			        IOUtils.closeQuietly(raf);
@@ -153,11 +153,11 @@ public class FileService  {
 
     }
 
-	private static void handleWriteFuture(ChannelFuture writeFuture, boolean isKeepAlive, RandomAccessFile raf) {
+	private static void handleWriteFuture(String description, File localFile, HttpRequest nettyRequest, ChannelFuture writeFuture, boolean isKeepAlive, RandomAccessFile raf) {
 		if (writeFuture != null) {
 			writeFuture.addListener(_ -> IOUtils.closeQuietly(raf));
 
-			addWriteFutureLogging(writeFuture);
+			addWriteFutureLogging(description, localFile, nettyRequest, writeFuture);
 		}
 
 		if (writeFuture != null && !isKeepAlive) {
@@ -165,13 +165,13 @@ public class FileService  {
 		}
 	}
 
-	private static void addWriteFutureLogging(ChannelFuture writeFuture) {
+	private static void addWriteFutureLogging(String description, File localFile, HttpRequest nettyRequest, ChannelFuture writeFuture) {
 		if (writeFuture != null) {
 			writeFuture.addListener(f -> {
 				if (!f.isSuccess()) {
-					Logger.error(f.cause(), "FileService body write failed");
+					Logger.error(f.cause(), "FileService body write FAILED at " + description + " for file " + localFile.getAbsolutePath() + " for request " + nettyRequest.uri());
 				} else {
-					Logger.trace("FileService body write succeeded");
+					Logger.trace("FileService body write SUCCEEDED at " + description + " for file " + localFile.getAbsolutePath() + " for request " + nettyRequest.uri());
 				}
 			});
 		}
