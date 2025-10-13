@@ -169,7 +169,7 @@ public class FileService  {
 		if (writeFuture != null) {
 			writeFuture.addListener(f -> {
 				if (!f.isSuccess()) {
-					Logger.error(f.cause(), "FileService body write FAILED at " + description + " for file " + localFile.getAbsolutePath() + " for request " + nettyRequest.uri());
+					Logger.debug(f.cause(), "FileService body write FAILED at " + description + " for file " + localFile.getAbsolutePath() + " for request " + nettyRequest.uri());
 				} else {
 					Logger.trace("FileService body write SUCCEEDED at " + description + " for file " + localFile.getAbsolutePath() + " for request " + nettyRequest.uri());
 				}
