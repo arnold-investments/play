@@ -1,5 +1,21 @@
 package play.db;
 
+import play.Logger;
+import play.Play;
+import play.PlayPlugin;
+import play.classloading.ApplicationClasses;
+import play.classloading.ApplicationClassloader;
+import play.db.evolutions.Evolution;
+import play.db.evolutions.EvolutionQuery;
+import play.db.evolutions.EvolutionState;
+import play.db.evolutions.exceptions.InconsistentDatabase;
+import play.db.evolutions.exceptions.InvalidDatabaseRevision;
+import play.exceptions.UnexpectedException;
+import play.mvc.Context;
+import play.mvc.Http;
+import play.mvc.results.Redirect;
+import play.vfs.VirtualFile;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -20,22 +36,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
-import play.Logger;
-import play.Play;
-import play.PlayPlugin;
-import play.classloading.ApplicationClasses;
-import play.classloading.ApplicationClassloader;
-import play.db.evolutions.Evolution;
-import play.db.evolutions.EvolutionQuery;
-import play.db.evolutions.EvolutionState;
-import play.db.evolutions.exceptions.InconsistentDatabase;
-import play.db.evolutions.exceptions.InvalidDatabaseRevision;
-import play.exceptions.UnexpectedException;
-import play.mvc.Context;
-import play.mvc.Http;
-import play.mvc.results.Redirect;
-import play.vfs.VirtualFile;
 
 /**
  * Handles migration of data.
@@ -632,9 +632,101 @@ public class Evolutions extends PlayPlugin {
         return script;
     }
 
-    private static final Pattern PATTERN_DB_DEFAULT = Pattern.compile("^(?:" + DB.DEFAULT + ".)?[0-9]+\\.sql$");
-    private static final Pattern PATTERN_EVO_UP = Pattern.compile("^#.*[!]Ups");
-    private static final Pattern PATTERN_EVO_DOWN = Pattern.compile("^#.*[!]Downs");
+    /**
+     * Checks if a filename matches the evolution file pattern for the given database name.
+     * Replaces regex pattern matching for better performance.
+     * 
+     * For default DB: matches "N.sql" or "default.N.sql" where N is a number
+     * For other DBs: matches "dbname.N.sql" where N is a number
+     * 
+     * @param fileName the filename to check
+     * @param dBName the database name
+     * @param isDefaultDb true if this is the default database
+     * @return the version number if the filename matches, or -1 if it doesn't match
+     */
+    private static int parseEvolutionFileName(String fileName, String dBName, boolean isDefaultDb) {
+        // Must end with .sql
+        if (!fileName.endsWith(".sql")) {
+            return -1;
+        }
+        
+        // Remove .sql suffix
+        String baseName = fileName.substring(0, fileName.length() - 4);
+        String prefix = dBName + ".";
+
+        if (isDefaultDb) {
+            // For default DB, accept either "N" or "default.N"
+            String versionPart;
+            if (baseName.startsWith(prefix) && baseName.length() > prefix.length()) {
+                // Format: "default.N"
+                versionPart = baseName.substring(prefix.length());
+            } else {
+                // Format: "N"
+                versionPart = baseName;
+            }
+
+            return parsePositiveInteger(versionPart);
+        } else {
+            // For non-default DB, must be "dbname.N"
+            if (!baseName.startsWith(prefix) || baseName.length() <= prefix.length()) {
+                return -1;
+            }
+
+            String versionPart = baseName.substring(prefix.length());
+            return parsePositiveInteger(versionPart);
+        }
+    }
+    
+    /**
+     * Parses a string as a positive integer (version number).
+     * Returns -1 if the string is not a valid positive integer.
+     */
+    private static int parsePositiveInteger(String s) {
+        if (s == null || s.isEmpty()) {
+            return -1;
+        }
+        // Check all characters are digits
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c < '0' || c > '9') {
+                return -1;
+            }
+        }
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+    
+    /**
+     * Checks if a line is an evolution section marker (Ups or Downs).
+     * Replaces regex pattern matching for better performance.
+     * 
+     * A valid marker line starts with '#' or '--' and contains '!Ups' or '!Downs'.
+     * 
+     * @param line the line to check
+     * @return 1 if it's an Ups marker, -1 if it's a Downs marker, 0 otherwise
+     */
+    private static int parseEvolutionSectionMarker(String line) {
+        if (line == null || line.isEmpty()) {
+            return 0;
+        }
+        
+        // Check if line starts with '#' or '--'
+        if (line.charAt(0) != '#' && !line.startsWith("--")) {
+            return 0;
+        }
+
+        // Check for !Ups or !Downs marker
+        if (line.contains("!Ups")) {
+            return 1;
+        } else if (line.contains("!Downs")) {
+            return -1;
+        }
+        
+        return 0;
+    }
 
     public static synchronized Stack<Evolution> listApplicationEvolutions(String dBName, String moduleKey,
             VirtualFile evolutionsDirectory) {
@@ -644,9 +736,7 @@ public class Evolutions extends PlayPlugin {
             Path path = evolutionsDirectory.getRealFile().toPath();
 
             try(DirectoryStream<Path> dirStream = Files.newDirectoryStream(path)) {
-	            Pattern pattern = DB.DEFAULT.equals(dBName)
-                    ? PATTERN_DB_DEFAULT
-                    : Pattern.compile("^" + dBName + ".[0-9]+\\.sql$");
+                boolean isDefaultDb = DB.DEFAULT.equals(dBName);
 
                 for (Path evolution : dirStream) {
                     if (Files.isDirectory(evolution)) {
@@ -655,17 +745,10 @@ public class Evolutions extends PlayPlugin {
 
                     String name = evolution.getFileName().toString();
 
-                    if (pattern.matcher(name).matches()) {
+                    int version = parseEvolutionFileName(name, dBName, isDefaultDb);
+                    if (version > 0) {
                         if (Logger.isTraceEnabled()) {
                             Logger.trace("Loading evolution %s", evolution);
-                        }
-
-                        int version = 0;
-                        if (name.contains(dBName)) {
-                            version = Integer.parseInt(
-                                name.substring(name.indexOf('.') + 1, name.lastIndexOf('.')));
-                        } else {
-                            version = Integer.parseInt(name.substring(0, name.indexOf('.')));
                         }
 
                         List<String> sql = Files.readAllLines(evolution);
@@ -675,16 +758,15 @@ public class Evolutions extends PlayPlugin {
                         StringBuilder current = null;
 
                         for (String line : sql) {
-                            if (PATTERN_EVO_UP.matcher(line).matches()) {
+                            int marker = parseEvolutionSectionMarker(line);
+                            if (marker == 1) {
                                 current = sql_up;
-                            } else if (PATTERN_EVO_DOWN.matcher(line).matches()) {
+                            } else if (marker == -1) {
                                 current = sql_down;
                             } else if (current != null) {
                                 String trimmed = line.trim();
 
-                                if (trimmed.startsWith("#")) {
-                                    // skip
-                                } else if (!trimmed.isEmpty()) {
+                                if (!trimmed.startsWith("#") && !trimmed.isEmpty()) {
                                     current.append(line).append("\n");
                                 }
                             }

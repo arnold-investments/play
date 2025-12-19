@@ -8,7 +8,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.security.MessageDigest;
-import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.io.FileUtils.writeByteArrayToFile;
@@ -17,8 +16,30 @@ import static org.apache.commons.io.FileUtils.writeByteArrayToFile;
  * Used to speed up compilation time
  */
 public class BytecodeCache {
-
-    private static final Pattern REPLACED_CHARS = Pattern.compile("[/{}:]");
+    private static String replaceSpecialChars(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        
+        StringBuilder result = null;
+        int length = name.length();
+        
+        for (int i = 0; i < length; i++) {
+            char c = name.charAt(i);
+            if (c == '/' || c == '{' || c == '}' || c == ':') {
+                if (result == null) {
+                    // Lazy initialization - only create StringBuilder when needed
+                    result = new StringBuilder(length);
+                    result.append(name, 0, i);
+                }
+                result.append('_');
+            } else if (result != null) {
+                result.append(c);
+            }
+        }
+        
+        return result != null ? result.toString() : name;
+    }
 
     /**
      * Delete the bytecode
@@ -29,7 +50,7 @@ public class BytecodeCache {
             if (!Play.initialized || Play.tmpDir == null || Play.readOnlyTmp || !Play.configuration.getProperty("play.bytecodeCache", "true").equals("true")) {
                 return;
             }
-            File f = cacheFile(REPLACED_CHARS.matcher(name).replaceAll("_"));
+            File f = cacheFile(replaceSpecialChars(name));
             if (f.exists()) {
                 f.delete();
             }
@@ -49,7 +70,7 @@ public class BytecodeCache {
             if (!Play.initialized || Play.tmpDir == null || !Play.configuration.getProperty("play.bytecodeCache", "true").equals("true")) {
                 return null;
             }
-            File f = cacheFile(REPLACED_CHARS.matcher(name).replaceAll("_"));
+            File f = cacheFile(replaceSpecialChars(name));
             if (f.exists()) {
                 FileInputStream fis = new FileInputStream(f);
                 // Read hash
@@ -94,7 +115,7 @@ public class BytecodeCache {
             if (!Play.initialized || Play.tmpDir == null || Play.readOnlyTmp || !Play.configuration.getProperty("play.bytecodeCache", "true").equals("true")) {
                 return;
             }
-            File f = cacheFile(REPLACED_CHARS.matcher(name).replaceAll("_"));
+            File f = cacheFile(replaceSpecialChars(name));
             try (FileOutputStream fos = new FileOutputStream(f)) {
                 fos.write(hash(source).getBytes(UTF_8));
                 fos.write(0);

@@ -1,7 +1,7 @@
 package play.classloading;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import play.Logger;
 import play.Play;
 import play.cache.Cache;
@@ -114,7 +114,7 @@ public class ApplicationClassloader extends ClassLoader {
 
     public Class<?> loadApplicationClass(String name) {
 
-        if (ApplicationClass.isClass(name)) {
+        if (ApplicationClass.isClass(name) || !Play.usePrecompiled) {
             Class<?> maybeAlreadyLoaded = findLoadedClass(name);
             if (maybeAlreadyLoaded != null) {
                 return maybeAlreadyLoaded;
@@ -131,7 +131,10 @@ public class ApplicationClassloader extends ClassLoader {
                 Class<?> clazz = findLoadedClass(name);
                 if (clazz == null) {
                     if (name.endsWith("package-info")) {
-                        definePackage(getPackageName(name), null, null, null, null, null, null, null);
+                        String packageName = getPackageName(name);
+                        if (getDefinedPackage(packageName) == null) {
+                            definePackage(getPackageName(name), null, null, null, null, null, null, null);
+                        }
                     } else {
                         loadPackage(name);
                     }
@@ -163,7 +166,10 @@ public class ApplicationClassloader extends ClassLoader {
             }
 
             if (!applicationClass.isClass()) {
-                definePackage(applicationClass.getPackage(), null, null, null, null, null, null, null);
+                String packageName = applicationClass.getPackage();
+                if (getDefinedPackage(packageName) == null) {
+                    definePackage(packageName, null, null, null, null, null, null, null);
+                }
             } else {
                 loadPackage(name);
             }
@@ -307,7 +313,7 @@ public class ApplicationClassloader extends ClassLoader {
             }
         }
         final Iterator<URL> it = urls.iterator();
-        return new Enumeration<URL>() {
+        return new Enumeration<>() {
 
             @Override
             public boolean hasMoreElements() {
@@ -343,11 +349,9 @@ public class ApplicationClassloader extends ClassLoader {
                     // remove all classes in that dir
                     synchronized (Play.classes.pathMap) {
                         List<ApplicationClass> classesToRemove = new ArrayList<>();
-                        for (Iterator<Map.Entry<Path, ApplicationClass>> it = Play.classes.pathMap.entrySet().iterator(); it.hasNext(); ) {
-	                        Map.Entry<Path, ApplicationClass> entry = it.next();
-
+                        for (Map.Entry<Path, ApplicationClass> entry : Play.classes.pathMap.entrySet()) {
                             if (entry.getKey().startsWith(path)) {
-	                            classesToRemove.add(entry.getValue());
+                                classesToRemove.add(entry.getValue());
                                 clearCache = true;
                             }
                         }
@@ -439,12 +443,12 @@ public class ApplicationClassloader extends ClassLoader {
                 if (file.endsWith(".java")) {
                     synchronized (Play.classes.pathMap) {
                         if (!Play.classes.pathMap.containsKey(file)) {
-                            String className = filename.substring(0, filename.length() - 5); // ".java".length() = 5
+                            StringBuilder className = new StringBuilder(filename.substring(0, filename.length() - 5)); // ".java".length() = 5
                             AtomicReference<Path> currentPath = new AtomicReference<>(file);
 
                             while(Play.javaPath.stream().noneMatch(vf -> vf.getRealFile().toPath().equals(currentPath.get()))) {
                                 Path cp = currentPath.get();
-                                className = cp.getFileName() + "." + className;
+                                className.insert(0, cp.getFileName() + ".");
                                 cp = cp.getParent();
 
                                 if (cp == null) {
@@ -454,7 +458,7 @@ public class ApplicationClassloader extends ClassLoader {
                                 currentPath.set(cp);
                             }
 
-                            ApplicationClass applicationClass = new ApplicationClass(className);
+                            ApplicationClass applicationClass = new ApplicationClass(className.toString());
                             Play.classes.add(applicationClass);
                         }
                     }
@@ -661,7 +665,7 @@ public class ApplicationClassloader extends ClassLoader {
             for (ApplicationClass clazz : Play.classes.all()) {
                 byNormalizedName.put(clazz.name.toLowerCase(), clazz);
                 if (clazz.name.contains("$")) {
-                    byNormalizedName.put(StringUtils.replace(clazz.name.toLowerCase(), "$", "."), clazz);
+                    byNormalizedName.put(Strings.CS.replace(clazz.name.toLowerCase(), "$", "."), clazz);
                 }
             }
 
@@ -681,7 +685,7 @@ public class ApplicationClassloader extends ClassLoader {
      *            The superclass, or the interface.
      * @return A list of class
      */
-    public List<Class> getAssignableClasses(Class clazz) {
+    public List<Class> getAssignableClasses(Class<?> clazz) {
         if (clazz == null) {
             return Collections.emptyList();
         }
@@ -704,7 +708,7 @@ public class ApplicationClassloader extends ClassLoader {
     private final Map<String, List<Class>> assignableClassesByName = new ConcurrentHashMap<>(100);
 
     /**
-     * Find a class in a case insensitive way
+     * Find a class in a case-insensitive way
      * 
      * @param name
      *            The class name.

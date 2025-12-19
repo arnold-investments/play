@@ -53,28 +53,23 @@ require:    &allDependencies
     - org.bouncycastle -> bcpkix-jdk18on 1.81
     - org.apache.groovy -> groovy 5.0.1.patched
     - org.apache.groovy -> groovy-xml 5.0.1
-    - org.eclipse.jdt -> org.eclipse.jdt.core 3.44.0-SNAPSHOT
-    - org.eclipse.jdt -> ecj 3.44.0-SNAPSHOT
-    - org.eclipse.platform -> org.eclipse.core.resources 3.23.100-SNAPSHOT
-#    - org.eclipse.platform -> org.eclipse.core.expressions 3.9.500-SNAPSHOT
+    - org.eclipse.jdt -> org.eclipse.jdt.core 3.44.0
+    - org.eclipse.jdt -> ecj 3.44.0
+    - org.eclipse.platform -> org.eclipse.core.resources 3.23.100
     - org.eclipse.platform -> org.eclipse.core.expressions 3.9.500
-#    - org.eclipse.platform -> org.eclipse.core.filesystem 1.11.300-SNAPSHOT
     - org.eclipse.platform -> org.eclipse.core.filesystem 1.11.300
-    - org.eclipse.platform -> org.eclipse.core.runtime 3.34.100-SNAPSHOT
-    - org.eclipse.platform -> org.eclipse.osgi 3.23.300-SNAPSHOT
-    - org.eclipse.platform -> org.eclipse.equinox.common 3.20.300-SNAPSHOT
-#    - org.eclipse.platform -> org.eclipse.core.jobs 3.15.700-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.core.runtime 3.34.100
+    - org.eclipse.platform -> org.eclipse.osgi 3.24.0
+    - org.eclipse.platform -> org.eclipse.equinox.common 3.20.300
     - org.eclipse.platform -> org.eclipse.core.jobs 3.15.700
-    - org.eclipse.platform -> org.eclipse.equinox.registry 3.12.600-SNAPSHOT
-    - org.eclipse.platform -> org.eclipse.equinox.common 3.20.300-SNAPSHOT
-#    - org.eclipse.platform -> org.eclipse.equinox.preferences 3.12.0-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.equinox.registry 3.12.600
+    - org.eclipse.platform -> org.eclipse.equinox.common 3.20.300
     - org.eclipse.platform -> org.eclipse.equinox.preferences 3.12.0
-    - org.eclipse.platform -> org.eclipse.core.contenttype 3.9.800-SNAPSHOT
-#    - org.eclipse.platform -> org.eclipse.equinox.app 1.7.500-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.core.contenttype 3.9.800
     - org.eclipse.platform -> org.eclipse.equinox.app 1.7.500
     - net.java.dev.jna -> jna 5.18.0
-    - org.eclipse.platform -> org.eclipse.text 3.14.500-SNAPSHOT
-    - org.eclipse.platform -> org.eclipse.core.commands 3.12.500-SNAPSHOT
+    - org.eclipse.platform -> org.eclipse.text 3.14.500
+    - org.eclipse.platform -> org.eclipse.core.commands 3.12.500
     - org.hibernate -> hibernate-core 7.1.1.Final.patched
     - net.bytebuddy -> byte-buddy 1.17.6
     - jakarta.persistence -> jakarta.persistence-api 3.2.0
