@@ -147,8 +147,8 @@ public class PluginCollection {
         List<URL> urls = loadPlayPluginDescriptors();
 
         // First we build one big SortedSet of all plugins to load (sorted based on index)
-        // This must be done to make sure the enhancing is happening
-        // when loading plugins using other classes that must be enhanced.
+        // This must be done to make sure the signatures are computed
+        // when loading plugins using other classes that must be scanned.
         SortedSet<LoadingPluginInfo> pluginsToLoad = new TreeSet<>();
         for (URL url : urls) {
             Logger.trace("Found one plugins descriptor, %s", url);
@@ -631,19 +631,6 @@ public class PluginCollection {
         }
     }
 
-    public void enhance(ApplicationClasses.ApplicationClass applicationClass) {
-        for (PlayPlugin plugin : getEnabledPlugins()) {
-            try {
-                long start = System.nanoTime();
-                plugin.enhance(applicationClass);
-                if (Logger.isTraceEnabled()) {
-                    Logger.trace("%sns to apply %s to %s", System.nanoTime() - start, plugin, applicationClass.name);
-                }
-            } catch (Exception e) {
-                throw new UnexpectedException("While applying " + plugin + " on " + applicationClass.name, e);
-            }
-        }
-    }
 
 
     @Deprecated

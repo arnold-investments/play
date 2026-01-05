@@ -116,7 +116,7 @@ public class PersistenceUnitInfoImpl implements PersistenceUnitInfo {
 
     @Override
     public boolean excludeUnlistedClasses() {
-        return false;
+        return true;
     }
 
     @Override

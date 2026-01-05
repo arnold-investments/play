@@ -3,7 +3,7 @@ package play;
 import play.vfs.VirtualFile;
 
 /**
- * Plugin used for tracking for application.conf changes
+ * Plugin used for tracking of application.conf changes
  */
 public class ConfigurationChangeWatcherPlugin extends PlayPlugin {
     protected static long configLastModified = System.currentTimeMillis();

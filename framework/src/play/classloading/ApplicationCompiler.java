@@ -20,25 +20,21 @@ import org.eclipse.jdt.internal.compiler.env.NameEnvironmentAnswer;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.lookup.ModuleBinding;
 import org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
-import org.eclipse.jdt.internal.compiler.util.JRTUtil;
 import play.Logger;
 import play.Play;
 import play.classloading.ApplicationClasses.ApplicationClass;
 import play.exceptions.CompilationException;
 import play.exceptions.UnexpectedException;
-import play.vfs.VirtualFile;
 
 import java.io.File;
-import java.io.IOException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -172,9 +168,20 @@ public class ApplicationCompiler {
 	 */
 	@SuppressWarnings("deprecation")
 	public void compile(String[] classNames) {
-		ICompilationUnit[] compilationUnits = new CompilationUnit[classNames.length];
-		for (int i = 0; i < classNames.length; i++) {
-			compilationUnits[i] = new CompilationUnit(classNames[i]);
+		// Deduplicate and remove inner class suffixes
+		Set<String> uniqueNames = new LinkedHashSet<>();
+		for (String className : classNames) {
+			if (className.contains("$")) {
+				uniqueNames.add(className.substring(0, className.indexOf('$')));
+			} else {
+				uniqueNames.add(className);
+			}
+		}
+
+		ICompilationUnit[] compilationUnits = new CompilationUnit[uniqueNames.size()];
+		int i = 0;
+		for (String name : uniqueNames) {
+			compilationUnits[i++] = new CompilationUnit(name);
 		}
 		IErrorHandlingPolicy policy = DefaultErrorHandlingPolicies.exitOnFirstError();
 		IProblemFactory problemFactory = new DefaultProblemFactory(Locale.ENGLISH);
@@ -185,6 +192,8 @@ public class ApplicationCompiler {
         String jrtFsJar = javaHome + File.separator + "lib" + File.separator + "jrt-fs.jar";
         String[] classpath = new String[] { jrtFsJar };
         FileSystem fs = new FileSystem(classpath, null, "UTF-8");
+
+        List<ApplicationClass> compiledClasses = new ArrayList<>();
 
 		// To find types ...
         INameEnvironment nameEnvironment = new IModuleAwareNameEnvironment() {
@@ -260,6 +269,13 @@ public class ApplicationCompiler {
 
                     // ApplicationClass exists
                     if (applicationClass != null) {
+
+                        if (applicationClass.javaByteCode == null) {
+                            byte[] bc = BytecodeCache.getBytecode(name, applicationClass.javaSource);
+                            if (bc != null) {
+                                applicationClass.compiled(bc);
+                            }
+                        }
 
                         if (applicationClass.javaByteCode != null) {
                             ClassFileReader classFileReader = new ClassFileReader(applicationClass.javaByteCode, fileName, true);
@@ -423,7 +439,28 @@ public class ApplicationCompiler {
 					Logger.trace("Compiled %s", clazzName);
 				}
 
-				applicationClasses.getApplicationClass(clazzName.toString()).compiled(clazzFile.getBytes());
+				ApplicationClass ac = applicationClasses.getApplicationClass(clazzName.toString());
+				ac.compiled(clazzFile.getBytes());
+				compiledClasses.add(ac);
+
+				// Capture dependencies
+				if (result.qualifiedReferences != null) {
+					for (char[][] ref : result.qualifiedReferences) {
+						String depName = Arrays.stream(ref).map(String::valueOf).collect(Collectors.joining("."));
+						if (applicationClasses.getApplicationClass(depName) != null) {
+							ac.dependencies.add(depName);
+						} else {
+							// Try to resolve as inner class
+							while (depName.contains(".")) {
+								depName = depName.substring(0, depName.lastIndexOf('.')) + "$" + depName.substring(depName.lastIndexOf('.') + 1);
+								if (applicationClasses.getApplicationClass(depName) != null) {
+									ac.dependencies.add(depName);
+									break;
+								}
+							}
+						}
+					}
+				}
 			}
 		};
 
@@ -440,6 +477,11 @@ public class ApplicationCompiler {
 
 		// Go !
 		jdtCompiler.compile(compilationUnits);
+
+		for (ApplicationClass ac : compiledClasses) {
+			ac.computeSignatures();
+			BytecodeCache.cacheBytecode(ac.javaByteCode, ac.name, ac.javaSource);
+		}
 
 	}
 }

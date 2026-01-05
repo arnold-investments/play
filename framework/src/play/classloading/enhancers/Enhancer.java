@@ -27,15 +27,11 @@ import play.Play;
 import play.classloading.ApplicationClasses.ApplicationClass;
 
 /**
- * Enhancer support
+ * Base class for class scanners that compute signatures.
  */
 public abstract class Enhancer {
 
-    protected final ClassPool classPool;
-
-    public Enhancer() {
-        this.classPool = newClassPool();
-    }
+    public static final ClassPool classPool = newClassPool();
 
     public static ClassPool newClassPool() {
         ClassPool classPool = new ClassPool();
@@ -55,7 +51,7 @@ public abstract class Enhancer {
      *             if problem occurred during construction
      */
     public CtClass makeClass(ApplicationClass applicationClass) throws IOException {
-        return classPool.makeClass(new ByteArrayInputStream(applicationClass.enhancedByteCode));
+        return classPool.makeClass(new ByteArrayInputStream(applicationClass.javaByteCode));
     }
 
     /**
@@ -66,7 +62,7 @@ public abstract class Enhancer {
      * @throws Exception
      *             if problem occurred during construction
      */
-    public abstract void enhanceThisClass(ApplicationClass applicationClass) throws Exception;
+    public abstract void computeSignatures(ApplicationClass applicationClass) throws Exception;
 
     /**
      * Dumb classpath implementation for javassist hacking
@@ -86,11 +82,11 @@ public abstract class Enhancer {
             }
             ApplicationClass appClass = Play.classes.getApplicationClass(className);
 
-            if (appClass.enhancedByteCode == null) {
-                throw new RuntimeException("Trying to visit uncompiled class while enhancing. Uncompiled class: " + className);
+            if (appClass.javaByteCode == null) {
+                throw new RuntimeException("Trying to visit uncompiled class while scanning. Uncompiled class: " + className);
             }
 
-            return new ByteArrayInputStream(appClass.enhancedByteCode);
+            return new ByteArrayInputStream(appClass.javaByteCode);
         }
 
         @Override
@@ -105,101 +101,6 @@ public abstract class Enhancer {
             }
             return null;
         }
-    }
-
-    /**
-     * Test if a class has the provided annotation
-     * 
-     * @param ctClass
-     *            the javassist class representation
-     * @param annotation
-     *            fully qualified name of the annotation class eg."jakarta.persistence.Entity"
-     * @return true if class has the annotation
-     * @throws java.lang.ClassNotFoundException
-     *             if class not found
-     */
-    protected boolean hasAnnotation(CtClass ctClass, String annotation) throws ClassNotFoundException {
-        for (Object object : ctClass.getAvailableAnnotations()) {
-            Annotation ann = (Annotation) object;
-            if (ann.annotationType().getName().equals(annotation)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Test if a field has the provided annotation
-     * 
-     * @param ctField
-     *            the javassist field representation
-     * @param annotation
-     *            fully qualified name of the annotation class eg."jakarta.persistence.Entity"
-     * @return true if field has the annotation
-     * @throws java.lang.ClassNotFoundException
-     *             if class not found
-     */
-    protected boolean hasAnnotation(CtField ctField, String annotation) throws ClassNotFoundException {
-        for (Object object : ctField.getAvailableAnnotations()) {
-            Annotation ann = (Annotation) object;
-            if (ann.annotationType().getName().equals(annotation)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Test if a method has the provided annotation
-     * 
-     * @param ctMethod
-     *            the javassist method representation
-     * @param annotation
-     *            fully qualified name of the annotation class eg."jakarta.persistence.Entity"
-     * @return true if field has the annotation
-     * @throws java.lang.ClassNotFoundException
-     *             if class not found
-     */
-    protected boolean hasAnnotation(CtMethod ctMethod, String annotation) throws ClassNotFoundException {
-        for (Object object : ctMethod.getAvailableAnnotations()) {
-            Annotation ann = (Annotation) object;
-            if (ann.annotationType().getName().equals(annotation)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Create a new annotation to be dynamically inserted in the byte code.
-     * 
-     * @param attribute
-     *            annotation attribute
-     * @param annotationType
-     *            Annotation
-     * @param members
-     *            Member of the annotation
-     */
-    protected static void createAnnotation(AnnotationsAttribute attribute, Class<? extends Annotation> annotationType,
-            Map<String, MemberValue> members) {
-        javassist.bytecode.annotation.Annotation annotation = new javassist.bytecode.annotation.Annotation(annotationType.getName(),
-                attribute.getConstPool());
-        for (Map.Entry<String, MemberValue> member : members.entrySet()) {
-            annotation.addMemberValue(member.getKey(), member.getValue());
-        }
-        attribute.addAnnotation(annotation);
-    }
-
-    /**
-     * Create a new annotation to be dynamically inserted in the byte code.
-     * 
-     * @param attribute
-     *            annotation attribute
-     * @param annotationType
-     *            Annotation
-     */
-    protected static void createAnnotation(AnnotationsAttribute attribute, Class<? extends Annotation> annotationType) {
-        createAnnotation(attribute, annotationType, new HashMap<String, MemberValue>());
     }
 
     /**
@@ -264,9 +165,5 @@ public abstract class Enhancer {
 
     boolean isScala(ApplicationClass app) {
         return app.javaFile.getName().endsWith(".scala");
-    }
-
-    boolean isAnon(ApplicationClass app) {
-        return app.name.contains("$anonfun$") || app.name.contains("$anon$");
     }
 }

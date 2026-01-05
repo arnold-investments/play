@@ -174,10 +174,6 @@ public class JobsPlugin extends PlayPlugin {
     private Job<?> createJob(Class<? extends Job<?>> clazz, Context context) throws InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
         Job<?> job = clazz.getDeclaredConstructor(Context.class).newInstance(context);
 
-        if (!job.getClass().equals(clazz)) {
-            throw new RuntimeException("Enhanced job are not allowed: " + clazz.getName() + " vs. " + job.getClass().getName());
-        }
-
         scheduledJobs.add(job);
         return job;
     }

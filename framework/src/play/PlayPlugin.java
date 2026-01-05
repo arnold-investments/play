@@ -178,13 +178,9 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
     }
 
     /**
-     * Enhance this class
-     * 
-     * @param applicationClass
-     *            the class to enhance
-     * @throws java.lang.Exception
-     *             if cannot enhance the class
+     * @deprecated Bytecode modification is no longer supported.
      */
+    @Deprecated
     public void enhance(ApplicationClass applicationClass) throws Exception {
     }
 
@@ -204,7 +200,7 @@ public abstract class PlayPlugin implements Comparable<PlayPlugin> {
      *
      * @param context context of this request
      * @return true if this plugin has managed this request
-     * @throws java.lang.Exception if the plugin cannot enhance the class
+     * @throws java.lang.Exception if problem occurred during invocation
      */
     public boolean rawInvocation(Context context) throws Exception {
         return false;

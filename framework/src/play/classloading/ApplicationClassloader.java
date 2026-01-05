@@ -161,7 +161,7 @@ public class ApplicationClassloader extends ClassLoader {
             }
             byte[] bc = BytecodeCache.getBytecode(name, applicationClass.javaSource);
 
-            if (Logger.isTraceEnabled()) {
+            if (bc == null && Logger.isTraceEnabled()) {
                 Logger.trace("Compiling code for %s", name);
             }
 
@@ -174,9 +174,9 @@ public class ApplicationClassloader extends ClassLoader {
                 loadPackage(name);
             }
             if (bc != null) {
-                applicationClass.enhancedByteCode = bc;
-                applicationClass.javaClass = defineClass(applicationClass.name, applicationClass.enhancedByteCode, 0,
-                        applicationClass.enhancedByteCode.length, protectionDomain);
+                applicationClass.javaByteCode = bc;
+                applicationClass.javaClass = defineClass(applicationClass.name, applicationClass.javaByteCode, 0,
+                        applicationClass.javaByteCode.length, protectionDomain);
                 resolveClass(applicationClass.javaClass);
                 if (!applicationClass.isClass()) {
                     applicationClass.javaPackage = applicationClass.javaClass.getPackage();
@@ -189,11 +189,13 @@ public class ApplicationClassloader extends ClassLoader {
                 return applicationClass.javaClass;
             }
             if (applicationClass.javaByteCode != null || applicationClass.compile() != null) {
-                applicationClass.enhance();
+                if (!applicationClass.enhanced) {
+                    applicationClass.computeSignatures();
+                    BytecodeCache.cacheBytecode(applicationClass.javaByteCode, name, applicationClass.javaSource);
+                }
 
-                applicationClass.javaClass = defineClass(applicationClass.name, applicationClass.enhancedByteCode, 0,
-                        applicationClass.enhancedByteCode.length, protectionDomain);
-                BytecodeCache.cacheBytecode(applicationClass.enhancedByteCode, name, applicationClass.javaSource);
+                applicationClass.javaClass = defineClass(applicationClass.name, applicationClass.javaByteCode, 0,
+                        applicationClass.javaByteCode.length, protectionDomain);
                 resolveClass(applicationClass.javaClass);
                 if (!applicationClass.isClass()) {
                     applicationClass.javaPackage = applicationClass.javaClass.getPackage();
@@ -507,8 +509,10 @@ public class ApplicationClassloader extends ClassLoader {
 
         // Now check for file modification
         List<ApplicationClass> modifiedClasses = new ArrayList<>();
+        Map<ApplicationClass, Integer> oldChecksums = new HashMap<>();
         for (ApplicationClass applicationClass : Play.classes.all()) {
             if (applicationClass.timestamp < applicationClass.javaFile.lastModified()) {
+                oldChecksums.put(applicationClass, applicationClass.sigChecksum);
                 applicationClass.refresh();
                 modifiedClasses.add(applicationClass);
             }
@@ -522,14 +526,14 @@ public class ApplicationClassloader extends ClassLoader {
 	        // show others that we have changed...
 	        if (applicationClass.compile() == null) {
                 Play.classes.classes.remove(applicationClass.name);
-	        } else {
-                int sigChecksum = applicationClass.sigChecksum;
-                applicationClass.enhance();
+         } else {
+                int sigChecksum = oldChecksums.getOrDefault(applicationClass, 0);
                 if (sigChecksum != applicationClass.sigChecksum) {
                     dirtySig = true;
                 }
-                BytecodeCache.cacheBytecode(applicationClass.enhancedByteCode, applicationClass.name, applicationClass.javaSource);
-                newDefinitions.add(new ClassDefinition(applicationClass.javaClass, applicationClass.enhancedByteCode));
+                if (applicationClass.javaClass != null) {
+                    newDefinitions.add(new ClassDefinition(applicationClass.javaClass, applicationClass.javaByteCode));
+                }
 	        }
 	        currentState = new ApplicationClassloaderState(); // show others that we have changed...
         }
@@ -635,15 +639,32 @@ public class ApplicationClassloader extends ClassLoader {
 
                 if (!Play.pluginCollection.compileSources()) {
 
-                    List<ApplicationClass> all = new ArrayList<>();
-
                     for (VirtualFile virtualFile : Play.javaPath) {
-                        all.addAll(getAllClasses(virtualFile));
+                        getAllClasses(virtualFile);
                     }
+
+                    // Discover inner classes from bytecode cache
+                    File bytecodeCacheDir = new File(Play.tmpDir, "bytecode/" + Play.mode.name());
+                    if (bytecodeCacheDir.exists()) {
+                        String[] files = bytecodeCacheDir.list();
+                        if (files != null) {
+                            for (String file : files) {
+                                if (file.contains("$")) {
+                                    Play.classes.getApplicationClass(file);
+                                }
+                            }
+                        }
+                    }
+
                     List<String> classNames = new ArrayList<>();
-                    for (ApplicationClass applicationClass : all) {
+                    for (ApplicationClass applicationClass : Play.classes.all()) {
                         if (applicationClass != null && !applicationClass.compiled && applicationClass.isClass()) {
-                            classNames.add(applicationClass.name);
+                            byte[] bc = BytecodeCache.getBytecode(applicationClass.name, applicationClass.javaSource);
+                            if (bc != null) {
+                                applicationClass.compiled(bc);
+                            } else {
+                                classNames.add(applicationClass.name);
+                            }
                         }
                     }
 

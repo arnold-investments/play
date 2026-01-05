@@ -1,21 +1,17 @@
 package play.classloading;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.lang.annotation.Annotation;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javassist.ClassPool;
-import javassist.CtClass;
 import play.Logger;
 import play.Play;
-import play.PlayPlugin;
-import play.classloading.enhancers.Enhancer;
 import play.classloading.enhancers.SigEnhancer;
 import play.exceptions.UnexpectedException;
 import play.vfs.VirtualFile;
@@ -34,6 +30,9 @@ public class ApplicationClasses {
      */
     Map<String, ApplicationClass> classes = new ConcurrentHashMap<>();
     final Map<Path, ApplicationClass> pathMap = new ConcurrentHashMap<>();
+    final java.util.Set<String> notFound = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    private final Object lock = new Object();
 
     /**
      * Clear the classes cache
@@ -41,6 +40,7 @@ public class ApplicationClasses {
     public void clear() {
         classes = new ConcurrentHashMap<>();
         pathMap.clear();
+        notFound.clear();
     }
 
     /**
@@ -51,16 +51,38 @@ public class ApplicationClasses {
      * @return The ApplicationClass or null
      */
     public ApplicationClass getApplicationClass(String name) {
-        return classes.computeIfAbsent(name, className -> {
-            VirtualFile javaFile = getJava(className);
-            if (javaFile == null) {
+        {
+            if (notFound.contains(name)) {
                 return null;
             }
 
-	        ApplicationClass applicationClass = new ApplicationClass(className, javaFile);
-            pathMap.put(javaFile.getRealFile().toPath(), applicationClass);
-            return applicationClass;
-        });
+            ApplicationClass ac = classes.get(name);
+            if (ac != null) {
+                return ac;
+            }
+        }
+
+        synchronized (lock) {
+            if (notFound.contains(name)) {
+                return null;
+            }
+
+            ApplicationClass ac = classes.get(name);
+            if (ac != null) {
+                return ac;
+            }
+
+            VirtualFile javaFile = getJava(name);
+            if (javaFile == null) {
+                notFound.add(name);
+                return null;
+            }
+
+            ac = new ApplicationClass(name, javaFile);
+            classes.put(name, ac);
+            pathMap.put(javaFile.getRealFile().toPath(), ac);
+            return ac;
+        }
     }
 
     public ApplicationClass getApplicationClass(String name, Path path) {
@@ -206,13 +228,13 @@ public class ApplicationClasses {
          */
         public String javaSource;
         /**
+         * The Java source hash
+         */
+        private String javaSourceHash;
+        /**
          * The compiled byteCode
          */
         public byte[] javaByteCode;
-        /**
-         * The enhanced byteCode
-         */
-        public byte[] enhancedByteCode;
         /**
          * The in JVM loaded class
          */
@@ -230,9 +252,25 @@ public class ApplicationClasses {
          */
         boolean compiled;
         /**
+         * Is this class enhanced (signatures computed)?
+         */
+        public boolean enhanced;
+        /**
          * Signatures checksum
          */
         public int sigChecksum;
+        /**
+         * Static final properties checksum
+         */
+        public int staticFinalSigChecksum;
+        /**
+         * Static final properties checksum computed
+         */
+        public boolean staticFinalSigComputed;
+        /**
+         * Dependencies of this class
+         */
+        public java.util.Set<String> dependencies = new java.util.HashSet<>();
 
         public ApplicationClass() {
         }
@@ -254,54 +292,48 @@ public class ApplicationClasses {
             if (this.javaFile != null) {
                 this.javaSource = this.javaFile.contentAsString();
             }
+            this.javaSourceHash = null;
             this.javaByteCode = null;
-            this.enhancedByteCode = null;
             this.compiled = false;
+            this.enhanced = false;
             this.timestamp = 0L;
+            this.sigChecksum = 0;
+            this.staticFinalSigChecksum = 0;
+            this.staticFinalSigComputed = false;
+            this.dependencies.clear();
         }
 
-        static final ClassPool enhanceChecker_classPool = Enhancer.newClassPool();
-        static final CtClass ctPlayPluginClass = enhanceChecker_classPool.makeClass(PlayPlugin.class.getName());
+        public final String getJavaSourceHash() {
+            if (this.javaSource == null) {
+                return null;
+            }
+
+            if (this.javaSourceHash == null) {
+                this.javaSourceHash = BytecodeCache.hash(this.javaSource);
+            }
+            return this.javaSourceHash;
+        }
+
 
 		private static SigEnhancer sigEnhancer = new SigEnhancer();
 
         /**
-         * Enhance this class
-         * 
-         * @return the enhanced byteCode
+         * Compute signatures for this class
          */
-        public byte[] enhance() {
-            this.enhancedByteCode = this.javaByteCode;
-
-            if (System.getProperty("precompile") == null && isClass()) {
-
-                // before we can start enhancing this class, we must make sure it is not a PlayPlugin.
-                // PlayPlugins can be included as regular java files in a Play-application.
-                // If a PlayPlugin is present in the application, it is loaded when other plugins are loaded.
-                // All plugins must be loaded before we can start enhancing.
-                // This is a problem when loading PlayPlugins bundled as regular app-class since it uses the same
-                // classloader as the other (soon-to-be) enhanced play-app-classes.
-                boolean shouldEnhance = true;
+        public void computeSignatures() {
+            if (enhanced) {
+                return;
+            }
+            if (isClass()) {
                 try {
-                    CtClass ctClass = enhanceChecker_classPool.makeClass(new ByteArrayInputStream(this.enhancedByteCode));
-                    if (ctClass.subclassOf(ctPlayPluginClass)) {
-                        shouldEnhance = false;
+                    long start = System.nanoTime();
+                    sigEnhancer.computeSignatures(this);
+                    enhanced = true;
+                    if (Logger.isTraceEnabled()) {
+                        Logger.trace("%sns to compute signatures for %s", System.nanoTime() - start, this.name);
                     }
                 } catch (Exception e) {
-                    // nop
-                }
-
-                if (shouldEnhance) {
-	                try {
-		                long start = System.nanoTime();
-		                sigEnhancer.enhanceThisClass(this);
-		                if (Logger.isTraceEnabled()) {
-			                Logger.trace("%sns to apply %s to %s", System.nanoTime() - start, sigEnhancer.getClass().getSimpleName(),
-					                this.name);
-		                }
-	                } catch (Exception e) {
-		                throw new UnexpectedException("While applying " + sigEnhancer + " on " + this.name, e);
-	                }
+                    throw new UnexpectedException("While computing signatures for " + this.name, e);
                 }
             }
 
@@ -311,14 +343,12 @@ public class ApplicationClasses {
                     File f = Play.getFile("precompiled/java/" + name.replace('.', '/') + ".class");
                     f.getParentFile().mkdirs();
                     try (FileOutputStream fos = new FileOutputStream(f)) {
-                        fos.write(this.enhancedByteCode);
+                        fos.write(this.javaByteCode);
                     }
                 } catch (Exception e) {
                     Logger.error(e, "Failed to write precompiled class %s to disk", name);
                 }
             }
-            return this.enhancedByteCode;
-
         }
 
         /**
@@ -374,7 +404,6 @@ public class ApplicationClasses {
          */
         public void compiled(byte[] code) {
             javaByteCode = code;
-            enhancedByteCode = code;
             compiled = true;
             this.timestamp = this.javaFile.lastModified();
         }
@@ -394,6 +423,9 @@ public class ApplicationClasses {
      * @return The virtualFile if found
      */
     public static VirtualFile getJava(String name) {
+        if (name.endsWith("$HibernateProxy") || name.endsWith("$HibernateInstantiator")) {
+            return null;
+        }
         String fileName = name;
         if (fileName.contains("$")) {
             fileName = fileName.substring(0, fileName.indexOf('$'));

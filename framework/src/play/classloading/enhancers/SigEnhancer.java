@@ -11,12 +11,12 @@ import javassist.bytecode.annotation.Annotation;
 import play.classloading.ApplicationClasses.ApplicationClass;
 
 /**
- * Compute a unique hash for the class signature.
+ * Compute a unique hash for the class signature and constant properties.
  */
 public class SigEnhancer extends Enhancer {
 
     @Override
-    public void enhanceThisClass(ApplicationClass applicationClass) throws Exception {
+    public void computeSignatures(ApplicationClass applicationClass) throws Exception {
         if (isScala(applicationClass)) {
             return;
         }
@@ -27,8 +27,27 @@ public class SigEnhancer extends Enhancer {
         }
 
         StringBuilder sigChecksum = new StringBuilder();
+        StringBuilder staticFinalSigChecksum = new StringBuilder();
 
         sigChecksum.append("Class->").append(ctClass.getName()).append(":");
+        if (ctClass.getGenericSignature() != null) {
+            sigChecksum.append(ctClass.getGenericSignature());
+        }
+        try {
+            CtClass superClass = ctClass.getSuperclass();
+            if (superClass != null) {
+                sigChecksum.append(" extends ").append(superClass.getName());
+            }
+        } catch (javassist.NotFoundException e) {
+            // Ignore
+        }
+        try {
+            for (CtClass i : ctClass.getInterfaces()) {
+                sigChecksum.append(" implements ").append(i.getName());
+            }
+        } catch (javassist.NotFoundException e) {
+            // Ignore
+        }
         for (Annotation annotation : getAnnotations(ctClass).getAnnotations()) {
             sigChecksum.append(annotation).append(",");
         }
@@ -36,6 +55,17 @@ public class SigEnhancer extends Enhancer {
         for (CtField field : ctClass.getDeclaredFields()) {
             sigChecksum.append(" Field->").append(ctClass.getName()).append(" ").append(field.getSignature()).append(":");
             sigChecksum.append(field.getSignature());
+            if (field.getGenericSignature() != null) {
+                sigChecksum.append(field.getGenericSignature());
+            }
+            if (javassist.Modifier.isStatic(field.getModifiers()) && javassist.Modifier.isFinal(field.getModifiers())) {
+                // Capture constant values for inlinable fields
+                Object constantValue = field.getConstantValue();
+                if (constantValue != null) {
+                    staticFinalSigChecksum.append(field.getName()).append(":").append(field.getSignature()).append("=").append(constantValue).append(",");
+                    sigChecksum.append("=").append(constantValue);
+                }
+            }
             for (Annotation annotation : getAnnotations(field).getAnnotations()) {
                 sigChecksum.append(annotation).append(",");
             }
@@ -43,6 +73,9 @@ public class SigEnhancer extends Enhancer {
 
         for (CtMethod method : ctClass.getDeclaredMethods()) {
             sigChecksum.append(" Method->").append(method.getName()).append(method.getSignature()).append(":");
+            if (method.getGenericSignature() != null) {
+                sigChecksum.append(method.getGenericSignature());
+            }
             for (Annotation annotation : getAnnotations(method).getAnnotations()) {
                 sigChecksum.append(annotation).append(" ");
             }
@@ -87,5 +120,7 @@ public class SigEnhancer extends Enhancer {
 
         // Done.
         applicationClass.sigChecksum = sigChecksum.toString().hashCode();
+        applicationClass.staticFinalSigChecksum = staticFinalSigChecksum.length() > 0 ? staticFinalSigChecksum.toString().hashCode() : 0;
+        applicationClass.staticFinalSigComputed = true;
     }
 }
