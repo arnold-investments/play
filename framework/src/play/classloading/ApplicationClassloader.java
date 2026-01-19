@@ -494,13 +494,17 @@ public class ApplicationClassloader extends ClassLoader {
      */
     public void detectChanges() throws RestartNeededException {
         if (watcherInstalled.compareAndSet(false, true)) {
-            Path appPath = Play.applicationPath.toPath().resolve("app");
+            Play.javaPath.forEach(vf -> {
+                Path addPath = vf.getRealFile().toPath();
 
-            try {
-                Files.walkFileTree(appPath, Set.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, detectChangesRegisteringVisitor);
-            } catch(IOException ex) {
-                throw new UnexpectedException(ex);
-            }
+                try {
+                    Files.walkFileTree(addPath, Set.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, detectChangesRegisteringVisitor);
+                } catch(IOException ex) {
+                    throw new UnexpectedException(ex);
+                }
+
+            });
+
         }
 
         if (!runRegularDetectChanges.compareAndSet(true, false)) {

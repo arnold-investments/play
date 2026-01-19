@@ -152,10 +152,10 @@ public class TestEngine {
                 Response response = new Response();
                 response.out = new ByteArrayOutputStream();
                 response.direct = null;
-                context.setResponse(response);
+                context = new Context(new Request(), response);
             }
 
-            if (context == null || context.getRenderArgs() == null) {
+            if (context.getRenderArgs() == null) {
                 RenderArgs renderArgs = new RenderArgs();
                 context.setRenderArgs(renderArgs);
             }
