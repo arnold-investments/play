@@ -177,6 +177,7 @@ tasks.register('syncLib') {
 
 tasks.named('jar') {
     dependsOn 'syncLib'
+    dependsOn 'modules'
 }
 
 tasks.named('compileJava') {

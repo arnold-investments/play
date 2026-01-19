@@ -36,12 +36,12 @@ configurations {
 
 dependencies {
     // Compile against prebuilt framework classes and libraries, but do not package them
-    compileOnly files('../../framework/classes')
+    compileOnly files('../../framework/build/classes/java/main')
     compileOnly fileTree(dir: '../../framework/lib', include: ['*.jar'])
     compileOnly fileTree(dir: 'firephoque', include: ['*.jar'])
 
     // Expose same classpath at runtime when needed (not packaged into our jar)
-    runtimeOnly files('../../framework/classes')
+    runtimeOnly files('../../framework/build/classes/java/main')
     runtimeOnly fileTree(dir: '../../framework/lib', include: ['*.jar'])
     runtimeOnly fileTree(dir: 'firephoque', include: ['*.jar'])
 }

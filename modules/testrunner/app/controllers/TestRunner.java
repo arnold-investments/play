@@ -19,6 +19,10 @@ import play.vfs.*;
 
 public class TestRunner extends Controller {
 
+    public TestRunner(Context context) {
+        super(context);
+    }
+
     public static void index() {
         List<Class> unitTests = TestEngine.allUnitTests();
         List<Class> functionalTests = TestEngine.allFunctionalTests();
