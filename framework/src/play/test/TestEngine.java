@@ -12,11 +12,15 @@ import java.util.ListIterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.junit.Assert;
-import org.junit.runner.Description;
-import org.junit.runner.JUnitCore;
-import org.junit.runner.notification.Failure;
-import org.junit.runner.notification.RunListener;
+import org.junit.jupiter.api.Assertions;
+import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.discovery.DiscoverySelectors;
+import org.junit.platform.launcher.Launcher;
+import org.junit.platform.launcher.LauncherDiscoveryRequest;
+import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
 import play.Logger;
 import play.Play;
 import play.mvc.Context;
@@ -45,7 +49,7 @@ public class TestEngine {
 
     public static List<Class> allUnitTests() {
         List<Class> classes = new ArrayList<>();
-        classes.addAll(Play.classloader.getAssignableClasses(Assert.class));
+        classes.addAll(Play.classloader.getAssignableClasses(BaseTest.class));
         classes.addAll(Play.pluginCollection.getUnitTests());
         for (ListIterator<Class> it = classes.listIterator(); it.hasNext();) {
             Class c = it.next();
@@ -177,9 +181,12 @@ public class TestEngine {
                 return pluginTestResults;
             }
 
-            JUnitCore junit = new JUnitCore();
-            junit.addListener(new Listener(testClass.getName(), testResults));
-            junit.run(testClass);
+            LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
+                    .selectors(DiscoverySelectors.selectClass(testClass))
+                    .build();
+            Launcher launcher = LauncherFactory.create();
+            launcher.registerTestExecutionListeners(new Listener(testClass.getName(), testResults));
+            launcher.execute(request);
 
         } catch (ClassNotFoundException e) {
             Logger.error(e, "Test not found %s", name);
@@ -189,7 +196,7 @@ public class TestEngine {
     }
 
     // ~~~~~~ Run listener
-    static class Listener extends RunListener {
+    static class Listener implements TestExecutionListener {
 
         final TestResults results;
         final String className;
@@ -201,45 +208,62 @@ public class TestEngine {
         }
 
         @Override
-        public void testStarted(Description description) throws Exception {
-            current = new TestResult();
-            current.name = description.getDisplayName().substring(0, description.getDisplayName().indexOf('('));
-            current.time = System.currentTimeMillis();
-        }
-
-        @Override
-        public void testFailure(Failure failure) throws Exception {
-
-            if (current == null) {
-                // The test probably failed before it could start, ie in @BeforeClass
+        public void executionStarted(TestIdentifier testIdentifier) {
+            if (testIdentifier.isTest()) {
                 current = new TestResult();
-                results.add(current); // must add it here since testFinished() never was called.
-                current.name = "Before any test started, maybe in @BeforeClass?";
+                current.name = testIdentifier.getDisplayName();
                 current.time = System.currentTimeMillis();
             }
-
-            if (failure.getException() instanceof AssertionError) {
-                current.error = "Failure, " + failure.getMessage();
-            } else {
-                current.error = "A " + failure.getException().getClass().getName() + " has been caught, " + failure.getMessage();
-            }
-            current.trace = failure.getTrace();
-            for (StackTraceElement stackTraceElement : failure.getException().getStackTrace()) {
-                if (stackTraceElement.getClassName().equals(className)) {
-                    current.sourceInfos = "In " + Play.classes.getApplicationClass(className).javaFile.relativePath() + ", line " + stackTraceElement.getLineNumber();
-                    current.sourceCode = Play.classes.getApplicationClass(className).javaSource.split("\n")[stackTraceElement.getLineNumber() - 1];
-                    current.sourceFile = Play.classes.getApplicationClass(className).javaFile.relativePath();
-                    current.sourceLine = stackTraceElement.getLineNumber();
-                }
-            }
-            current.passed = false;
-            results.passed = false;
         }
 
         @Override
-        public void testFinished(Description description) throws Exception {
-            current.time = System.currentTimeMillis() - current.time;
-            results.add(current);
+        public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult testExecutionResult) {
+            if (testIdentifier.isTest()) {
+                current.time = System.currentTimeMillis() - current.time;
+                if (testExecutionResult.getStatus() == TestExecutionResult.Status.FAILED) {
+                    current.passed = false;
+                    results.passed = false;
+                    Throwable throwable = testExecutionResult.getThrowable().orElse(null);
+                    if (throwable != null) {
+                        if (throwable instanceof AssertionError) {
+                            current.error = "Failure, " + throwable.getMessage();
+                        } else {
+                            current.error = "A " + throwable.getClass().getName() + " has been caught, " + throwable.getMessage();
+                        }
+                        current.trace = getStackTrace(throwable);
+                        for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
+                            if (stackTraceElement.getClassName().equals(className)) {
+                                current.sourceInfos = "In " + Play.classes.getApplicationClass(className).javaFile.relativePath() + ", line " + stackTraceElement.getLineNumber();
+                                current.sourceCode = Play.classes.getApplicationClass(className).javaSource.split("\n")[stackTraceElement.getLineNumber() - 1];
+                                current.sourceFile = Play.classes.getApplicationClass(className).javaFile.relativePath();
+                                current.sourceLine = stackTraceElement.getLineNumber();
+                            }
+                        }
+                    }
+                }
+                results.add(current);
+            } else if (testIdentifier.isContainer() && testExecutionResult.getStatus() == TestExecutionResult.Status.FAILED) {
+                // Handle failures in @BeforeAll or class-level setup
+                if (current == null) {
+                    current = new TestResult();
+                    current.name = "Before any test started (Setup error)";
+                    current.time = System.currentTimeMillis();
+                    current.passed = false;
+                    results.passed = false;
+                    testExecutionResult.getThrowable().ifPresent(t -> {
+                        current.error = "A " + t.getClass().getName() + " has been caught, " + t.getMessage();
+                        current.trace = getStackTrace(t);
+                    });
+                    results.add(current);
+                }
+            }
+        }
+
+        private String getStackTrace(Throwable throwable) {
+            java.io.StringWriter sw = new java.io.StringWriter();
+            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+            throwable.printStackTrace(pw);
+            return sw.toString();
         }
     }
 

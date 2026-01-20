@@ -7,7 +7,7 @@ import org.asynchttpclient.request.body.multipart.MultipartBody;
 import org.asynchttpclient.request.body.multipart.MultipartUtils;
 import org.asynchttpclient.request.body.multipart.Part;
 import org.asynchttpclient.request.body.multipart.StringPart;
-import org.junit.Before;
+import org.junit.jupiter.api.BeforeEach;
 import play.Invoker;
 import play.Invoker.InvocationContext;
 import play.exceptions.JavaExecutionException;
@@ -54,7 +54,7 @@ public abstract class FunctionalTest extends BaseTest {
 
     private static final Map<String, Object> renderArgs = new HashMap<>();
 
-    @Before
+    @BeforeEach
     public void clearCookies() {
         savedCookies = null;
     }
@@ -511,7 +511,7 @@ public abstract class FunctionalTest extends BaseTest {
      *            server response
      */
     public static void assertStatus(int status, Response response) {
-        assertEquals("Response status ", (Object) status, response.status);
+        assertEquals((Object) status, response.status, "Response status ");
     }
 
     public static void assertIsStaticFile(Response response, String filePath) {
@@ -544,7 +544,7 @@ public abstract class FunctionalTest extends BaseTest {
     public static void assertContentMatch(String pattern, Response response) {
         Pattern ptn = Pattern.compile(pattern);
         boolean ok = ptn.matcher(getContent(response)).find();
-        assertTrue("Response content does not match '" + pattern + "'", ok);
+        assertTrue(ok, "Response content does not match '" + pattern + "'");
     }
 
     /**
@@ -572,9 +572,8 @@ public abstract class FunctionalTest extends BaseTest {
      */
     public static void assertContentType(String contentType, Response response) {
         String responseContentType = response.contentType;
-        assertNotNull("Response contentType missing", responseContentType);
-        assertTrue("Response contentType unmatched : '" + contentType + "' !~ '" + responseContentType + "'",
-                responseContentType.startsWith(contentType));
+        assertNotNull(responseContentType, "Response contentType missing");
+        assertTrue(responseContentType.startsWith(contentType), "Response contentType unmatched : '" + contentType + "' !~ '" + responseContentType + "'");
     }
 
     /**
@@ -588,8 +587,8 @@ public abstract class FunctionalTest extends BaseTest {
      *            server response
      */
     public static void assertHeaderEquals(String headerName, String value, Response response) {
-        assertNotNull("Response header " + headerName + " missing", response.headers.get(headerName));
-        assertEquals("Response header " + headerName + " mismatch", value, response.headers.get(headerName).value());
+        assertNotNull(response.headers.get(headerName), "Response header " + headerName + " missing");
+        assertEquals(value, response.headers.get(headerName).value(), "Response header " + headerName + " mismatch");
     }
 
     /**
