@@ -36,13 +36,33 @@ public class PlayJUnitExtension implements BeforeAllCallback, BeforeEachCallback
 
     @Override
     public void interceptTestMethod(Invocation<Void> invocation, ReflectiveInvocationContext<Method> invocationContext, ExtensionContext extensionContext) throws Throwable {
+        wrapInPlayInvocation(invocation);
+    }
+
+    @Override
+    public void interceptDynamicTest(Invocation<Void> invocation, DynamicTestInvocationContext invocationContext, ExtensionContext extensionContext) throws Throwable {
+        wrapInPlayInvocation(invocation);
+    }
+
+    @Override
+    public <T> T interceptTestFactoryMethod(Invocation<T> invocation, ReflectiveInvocationContext<Method> invocationContext, ExtensionContext extensionContext) throws Throwable {
+        return wrapInPlayInvocation(invocation);
+    }
+
+    @Override
+    public void interceptTestTemplateMethod(Invocation<Void> invocation, ReflectiveInvocationContext<Method> invocationContext, ExtensionContext extensionContext) throws Throwable {
+        wrapInPlayInvocation(invocation);
+    }
+
+    private <T> T wrapInPlayInvocation(Invocation<T> invocation) throws Throwable {
         if (useCustomRunner) {
             try {
+                final Object[] result = new Object[1];
                 DirectInvocation directInvocation = new DirectInvocation(new Context(null, null)) {
                     @Override
                     public void execute() throws Exception {
                         try {
-                            invocation.proceed();
+                            result[0] = invocation.proceed();
                         } catch (Throwable throwable) {
                             throw new RuntimeException(throwable);
                         }
@@ -54,11 +74,13 @@ public class PlayJUnitExtension implements BeforeAllCallback, BeforeEachCallback
                     }
                 };
                 Invoker.invokeInThread(directInvocation);
+                return (T) result[0];
             } catch (Throwable throwable) {
-                throw ExceptionUtils.getRootCause(throwable);
+                Throwable rootCause = ExceptionUtils.getRootCause(throwable);
+                throw rootCause != null ? rootCause : throwable;
             }
         } else {
-            invocation.proceed();
+            return invocation.proceed();
         }
     }
 

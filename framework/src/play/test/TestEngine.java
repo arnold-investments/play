@@ -1,18 +1,5 @@
 package play.test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import org.junit.jupiter.api.Assertions;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.launcher.Launcher;
@@ -24,12 +11,23 @@ import org.junit.platform.launcher.core.LauncherFactory;
 import play.Logger;
 import play.Play;
 import play.mvc.Context;
-import play.mvc.Http;
 import play.mvc.Http.Request;
 import play.mvc.Http.Response;
 import play.mvc.Router;
 import play.mvc.Scope.RenderArgs;
 import play.vfs.VirtualFile;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Run application tests
@@ -230,11 +228,16 @@ public class TestEngine {
                         } else {
                             current.error = "A " + throwable.getClass().getName() + " has been caught, " + throwable.getMessage();
                         }
-                        current.trace = getStackTrace(throwable);
+                        current.trace = play.utils.HTML.htmlEscape(getStackTrace(throwable));
+                        String[] sourceLines = Play.classes.getApplicationClass(className).javaSource.split("\n");
                         for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
-                            if (stackTraceElement.getClassName().equals(className)) {
+                            // JB: instead of an exact class match, we use startsWith to allow matching of lambdas used in DynamicTests
+                            if (stackTraceElement.getClassName().startsWith(className)) {
                                 current.sourceInfos = "In " + Play.classes.getApplicationClass(className).javaFile.relativePath() + ", line " + stackTraceElement.getLineNumber();
-                                current.sourceCode = Play.classes.getApplicationClass(className).javaSource.split("\n")[stackTraceElement.getLineNumber() - 1];
+                                int lineIndex = stackTraceElement.getLineNumber() - 1;
+                                if (lineIndex >= 0 && lineIndex < sourceLines.length) {
+                                    current.sourceCode = sourceLines[lineIndex].trim();
+                                }
                                 current.sourceFile = Play.classes.getApplicationClass(className).javaFile.relativePath();
                                 current.sourceLine = stackTraceElement.getLineNumber();
                             }
@@ -252,7 +255,7 @@ public class TestEngine {
                     results.passed = false;
                     testExecutionResult.getThrowable().ifPresent(t -> {
                         current.error = "A " + t.getClass().getName() + " has been caught, " + t.getMessage();
-                        current.trace = getStackTrace(t);
+                        current.trace = play.utils.HTML.htmlEscape(getStackTrace(t));
                     });
                     results.add(current);
                 }
