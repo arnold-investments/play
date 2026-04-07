@@ -240,6 +240,9 @@ public abstract class Binder {
             }
 
             if (RecordSupport.isRecord(clazz)) {
+                if (ConstructorBindingSupport.shouldUseConstructorBinding(clazz)) {
+                    return ConstructorBindingSupport.bindViaConstructor(context, paramNode, clazz, bindingAnnotations);
+                }
                 return RecordSupport.bindRecord(context, paramNode, clazz, bindingAnnotations);
             }
 
