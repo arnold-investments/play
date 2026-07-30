@@ -4,6 +4,9 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.http.HttpDecoderConfig;
+import io.netty.handler.codec.http.HttpObjectDecoder;
+import io.netty.handler.codec.http.HttpServerCodec;
 import play.Logger;
 import play.Play;
 import play.exceptions.UnexpectedException;
@@ -88,7 +91,21 @@ public class HttpServerInitializer extends ChannelInitializer<SocketChannel> {
 				}
 			});
 			if (ChannelHandler.class.isAssignableFrom(clazz)) {
-				return (ChannelHandler) clazz.getDeclaredConstructor().newInstance();
+				if (HttpServerCodec.class.isAssignableFrom(clazz)) {
+					HttpDecoderConfig config = new HttpDecoderConfig();
+					String maxInitialLineLengthStr = Play.configuration.getProperty("http.server.maxInitialLineLength");
+					config.setMaxInitialLineLength(maxInitialLineLengthStr == null ? HttpObjectDecoder.DEFAULT_MAX_INITIAL_LINE_LENGTH : Integer.parseInt(maxInitialLineLengthStr));
+
+					String maxHeaderSizeStr = Play.configuration.getProperty("http.server.maxHeaderSize");
+					config.setMaxHeaderSize(maxHeaderSizeStr == null ? HttpObjectDecoder.DEFAULT_MAX_HEADER_SIZE : Integer.parseInt(maxHeaderSizeStr));
+
+					String maxChunkSizeStr = Play.configuration.getProperty("http.server.maxChunkSize");
+					config.setMaxChunkSize(maxChunkSizeStr == null ? HttpObjectDecoder.DEFAULT_MAX_CHUNK_SIZE : Integer.parseInt(maxChunkSizeStr));
+
+					return new HttpServerCodec(config);
+				} else {
+					return (ChannelHandler) clazz.getDeclaredConstructor().newInstance();
+				}
 			}
 		} catch (Throwable t) {
 			Logger.error(t, "Error instantiating %s", fqcn);
