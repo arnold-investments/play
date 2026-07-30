@@ -45,7 +45,7 @@ public class DBPlugin extends PlayPlugin {
                 if (play.Logger.usesJuli()) {
                     System.setProperty("com.mchange.v2.log.MLog", "jul");
                 } else {
-                    System.setProperty("com.mchange.v2.log.MLog", "log4j");
+                    System.setProperty("com.mchange.v2.log.MLog", "log4j2");
                 }
                 
                 Set<String> dbNames = Configuration.getDbNames();
