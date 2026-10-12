@@ -813,7 +813,26 @@ public class Controller implements PlayController {
         return (Class<? extends Controller>) request.controllerClass;
     }
 
-
+    /**
+     * Suspend the current action until the given promise is redeemed, then continue with the callback.
+     * <p>
+     * The callback is always invoked once the promise is redeemed, with the promise value or with <code>null</code>
+     * if the promise was redeemed with an exception. If the promise failed, the exception is afterwards handled
+     * exactly like an exception thrown by a regular action: <code>@Catch</code> methods, <code>@Finally</code>
+     * methods, plugins and the error page (500) are invoked with it — unless the callback itself produced a
+     * {@link play.mvc.results.Result} (e.g. <code>renderText</code>, <code>notFound</code>), in which case that
+     * result is applied and the promise exception is only logged. Exceptions thrown by the callback are handled the
+     * same way as exceptions thrown by a regular action.
+     * <p>
+     * Calling <code>await</code> again from inside the callback (nested await) is not supported.
+     *
+     * @param promise
+     *            The promise to wait for
+     * @param callback
+     *            The continuation invoked with the promise result (<code>null</code> if the promise failed)
+     * @param <T>
+     *            The promise result type
+     */
     protected static <T> void await(F.Promise<T> promise, F.Action<T> callback) {
         throw new Invoker.AsyncRequest(promise, callback);
     }

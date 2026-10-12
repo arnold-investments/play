@@ -144,3 +144,4 @@ samples-and-tests/zencontact/precompiled
 !modules/testrunner
 !framework/src/play/db
 !framework/test-src/play/db
+/framework/.junie

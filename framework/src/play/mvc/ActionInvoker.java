@@ -35,7 +35,6 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -122,7 +121,9 @@ public class ActionInvoker {
 
             F.Promise<?> chainedPromise = new F.Promise<>();
             e.getTask().onRedeem(p -> {
-                Throwable throwable = null;
+                // The exception the awaited promise was redeemed with (null if it succeeded)
+                Throwable promiseException = p.getExceptionOrNull();
+                Throwable callbackThrowable = null;
 
                 try {
                     final AtomicBoolean executed = new AtomicBoolean(false);
@@ -137,16 +138,16 @@ public class ActionInvoker {
                     }
 
                 } catch (Throwable t) {
-                    throwable = t;
+                    callbackThrowable = t;
                 } finally {
+                    // Route the promise/callback failure through the regular action error handling
+                    // (@Catch, @Finally, plugins, 500 page) exactly like a synchronous action exception
+                    final Throwable throwable = resolveAsyncThrowable(context, promiseException, callbackThrowable);
                     Throwable innerThrowable = null;
                     try {
-                        final Throwable finalThrowable = throwable;
                         _invoke(context, (ignore1, ignore2) -> {
-                            if (finalThrowable instanceof Exception exception) {
-                                throw exception;
-                            } else if (finalThrowable != null) {
-                                throw new ExecutionException(finalThrowable);
+                            if (throwable != null) {
+                                throw toActionException(throwable);
                             }
                         }, (ignore1) -> ctx.monitor);
                     } catch(Throwable tx) {
@@ -173,6 +174,30 @@ public class ActionInvoker {
                 }
             }
         }
+    }
+
+    /**
+     * Decides which throwable must be processed after an awaited promise has been redeemed and its callback invoked.
+     * <ul>
+     * <li>promise succeeded: whatever the callback threw (possibly nothing);</li>
+     * <li>promise failed but the callback took over the flow by throwing a {@link Result}: that result is honoured,
+     * the promise exception is only logged;</li>
+     * <li>promise failed otherwise: the promise exception, with any callback throwable attached as suppressed.</li>
+     * </ul>
+     */
+    private static Throwable resolveAsyncThrowable(Context context, Throwable promiseException, Throwable callbackThrowable) {
+        if (promiseException == null) {
+            return callbackThrowable;
+        }
+        if (callbackThrowable instanceof Result) {
+            Logger.error(promiseException, "Promise awaited by %s failed; the await callback produced its own result",
+                    context.getRequest().action);
+            return callbackThrowable;
+        }
+        if (callbackThrowable != null && callbackThrowable != promiseException) {
+            promiseException.addSuppressed(callbackThrowable);
+        }
+        return promiseException;
     }
 
     private static class InvokeActionResult {
@@ -510,18 +535,25 @@ public class ActionInvoker {
         try {
             return method.invoke(instance, realArgs);
         } catch (InvocationTargetException ex) {
-            Throwable originalThrowable = ex.getTargetException();
-
-            if (originalThrowable instanceof Result || originalThrowable instanceof PlayException)
-                throw (Exception) originalThrowable;
-
-            StackTraceElement element = PlayException.getInterestingStackTraceElement(originalThrowable);
-            if (element != null) {
-                throw new JavaExecutionException(Play.classes.getApplicationClass(element.getClassName()), element.getLineNumber(),
-                        originalThrowable);
-            }
-            throw new JavaExecutionException(originalThrowable);
+            throw toActionException(ex.getTargetException());
         }
+    }
+
+    /**
+     * Wraps a throwable escaping from application code the same way as for a synchronous action invocation:
+     * {@link Result} and {@link PlayException} instances are returned unchanged, anything else is wrapped in a
+     * {@link JavaExecutionException} pointing to the interesting application stack frame.
+     */
+    static Exception toActionException(Throwable originalThrowable) {
+        if (originalThrowable instanceof Result || originalThrowable instanceof PlayException)
+            return (Exception) originalThrowable;
+
+        StackTraceElement element = PlayException.getInterestingStackTraceElement(originalThrowable);
+        if (element != null) {
+            return new JavaExecutionException(Play.classes.getApplicationClass(element.getClassName()), element.getLineNumber(),
+                    originalThrowable);
+        }
+        return new JavaExecutionException(originalThrowable);
     }
 
     public static Object[] getActionMethod(String fullAction) {

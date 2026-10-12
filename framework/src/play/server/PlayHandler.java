@@ -334,17 +334,18 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
             }
         }
 
+		/**
+		 * Releases the request body (a retained duplicate of the Netty content buffer) once the request is really
+		 * finished. This must not happen in {@link #_finally()}, which also runs at suspension time for actions
+		 * using <code>await()</code>, while the body may still be read by the await callback.
+		 */
 		@Override
-	    public void _finally() {
-			try {
-				super._finally();
-			} finally {
-				if (request != null && request.body != null) {
-					try {
-						request.body.close();
-					} catch (Exception e) {
-						Logger.error(e, "Error closing request body");
-					}
+	    public void onInvocationCompleted() {
+			if (request != null && request.body != null) {
+				try {
+					request.body.close();
+				} catch (Exception e) {
+					Logger.error(e, "Error closing request body");
 				}
 			}
 		}
@@ -1339,8 +1340,7 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
         }
 
 	    @Override
-	    public void _finally() {
-		    super._finally();
+	    public void onInvocationCompleted() {
 		    try {
 			    context.getRequest().close();
 		    } catch (Exception _) {

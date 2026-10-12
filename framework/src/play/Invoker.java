@@ -248,9 +248,22 @@ public class Invoker {
 
          /**
          * Things to do in all cases after the invocation.
+         * <p>
+         * For an invocation suspended by <code>await()</code> this runs on every thread that took part in the
+         * invocation (the invoker thread at suspension time and the thread redeeming the promise at completion
+         * time), because plugin cleanup is typically thread-bound. Per-request resources must be released in
+         * {@link #onInvocationCompleted()} instead.
          */
         public void _finally() {
             Play.pluginCollection.invocationFinally(context);
+        }
+
+        /**
+         * Called exactly once per invocation when it is really finished (response produced or error served), also
+         * for invocations suspended by <code>await()</code>. Unlike {@link #_finally()}, which runs on every thread
+         * that participated in the invocation, this is the place to release per-request resources.
+         */
+        public void onInvocationCompleted() {
         }
 
 
@@ -270,6 +283,7 @@ public class Invoker {
                 waitInQueue.stop();
             }
 
+            boolean suspended = false;
             try {
                 preInit(context);
                 if (init()) {
@@ -289,6 +303,8 @@ public class Invoker {
                 }
             } catch (AsyncRequest e) {
                 after();
+                // From now on the completion of the invocation is owned by the thread redeeming the promise
+                suspended = true;
                 e.task.onRedeem(p -> {
                     try {
                         try {
@@ -301,7 +317,11 @@ public class Invoker {
                         } catch (Throwable ie) {
                             onException(ie);
                         } finally {
-                            _finally();
+                            try {
+                                _finally();
+                            } finally {
+                                onInvocationCompleted();
+                            }
                         }
                     } catch (Exception ex) {
                         serve500(ex);
@@ -311,7 +331,13 @@ public class Invoker {
             } catch (Throwable e) {
                 onException(e);
             } finally {
-                _finally();
+                try {
+                    _finally();
+                } finally {
+                    if (!suspended) {
+                        onInvocationCompleted();
+                    }
+                }
             }
         }
 
