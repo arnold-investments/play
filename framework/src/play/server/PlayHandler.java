@@ -10,6 +10,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelOutboundInvoker;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -89,6 +90,12 @@ import java.util.stream.Stream;
 
 public class PlayHandler extends ChannelInboundHandlerAdapter {
     private static final String X_HTTP_METHOD_OVERRIDE = "X-HTTP-Method-Override";
+    static final ChannelFutureListener CLOSE_ON_WRITE_FAILURE = future -> {
+        if (!future.isSuccess() && future.channel().isOpen()) {
+            Logger.error(future.cause(), "Failed to write HTTP response; closing channel");
+            future.channel().close();
+        }
+    };
 
     /**
      * If true (the default), Play will send the HTTP header "Server: Play!
@@ -461,7 +468,8 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
 
         ChannelFuture f = null;
         if (ctx.channel().isActive()) {
-	        ctx.write(nettyResponse);
+	        ChannelFuture headerWriteFuture = ctx.write(nettyResponse);
+	        headerWriteFuture.addListener(CLOSE_ON_WRITE_FAILURE);
 			if (content != null) {
 				ctx.write(content);
 			}
@@ -480,6 +488,12 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
         if (Logger.isTraceEnabled()) {
             Logger.trace("writeResponse: end");
         }
+    }
+
+    static ChannelFuture writeWithoutBody(ChannelOutboundInvoker outbound, HttpResponse nettyResponse) {
+        ChannelFuture headerWriteFuture = outbound.write(nettyResponse);
+        headerWriteFuture.addListener(CLOSE_ON_WRITE_FAILURE);
+        return outbound.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
     }
 
     public void copyResponse(ChannelHandlerContext ctx, Request request, Response response, HttpRequest nettyRequest)
@@ -532,7 +546,7 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
                 if (nettyResponse.status().equals(HttpResponseStatus.NOT_MODIFIED)) {
 
                     // Write the initial line and the header.
-                    ChannelFuture writeFuture = ctx.writeAndFlush(nettyResponse);
+                    ChannelFuture writeFuture = writeWithoutBody(ctx, nettyResponse);
 
                     if (!keepAlive) {
                         // Close the connection when the whole content is
@@ -556,7 +570,8 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
 
 		        // Send headers, then the body wrapped in HttpChunkedInput so it appends LastHttpContent
 
-		        ctx.write(nettyResponse);
+		        ChannelFuture headerWriteFuture = ctx.write(nettyResponse);
+		        headerWriteFuture.addListener(CLOSE_ON_WRITE_FAILURE);
 		        ChannelFuture writeFuture = ctx.writeAndFlush(new HttpChunkedInput(new ChunkedStream(is)));
 
 		        if (!keepAlive) {
@@ -564,7 +579,7 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
 		        }
 	        } else {
 		        // No body for HEAD or 304. Just flush the headers.
-		        ChannelFuture writeFuture = ctx.writeAndFlush(nettyResponse);
+		        ChannelFuture writeFuture = writeWithoutBody(ctx, nettyResponse);
 		        if (!keepAlive) {
 			        writeFuture.addListener(ChannelFutureListener.CLOSE);
 		        }
@@ -579,13 +594,14 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
 		        nettyResponse.headers().remove(HttpHeaderNames.CONTENT_LENGTH);
 		        nettyResponse.headers().set(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
 
-		        ctx.write(nettyResponse);
+		        ChannelFuture headerWriteFuture = ctx.write(nettyResponse);
+		        headerWriteFuture.addListener(CLOSE_ON_WRITE_FAILURE);
 		        ChannelFuture writeFuture = ctx.writeAndFlush(new HttpChunkedInput((ChunkedInput<ByteBuf>) stream));
 		        if (!keepAlive) {
 			        writeFuture.addListener(ChannelFutureListener.CLOSE);
 		        }
 	        } else {
-		        ChannelFuture writeFuture = ctx.writeAndFlush(nettyResponse);
+		        ChannelFuture writeFuture = writeWithoutBody(ctx, nettyResponse);
 		        if (!keepAlive) {
 			        writeFuture.addListener(ChannelFutureListener.CLOSE);
 		        }
@@ -960,7 +976,7 @@ public class PlayHandler extends ChannelInboundHandlerAdapter {
                         Channel ch = ctx.channel();
 
                         // Write the initial line and the header.
-                        ChannelFuture writeFuture = ch.writeAndFlush(nettyResponse);
+                        ChannelFuture writeFuture = writeWithoutBody(ch, nettyResponse);
                         if (!keepAlive) {
                             // Write the content.
                             writeFuture.addListener(ChannelFutureListener.CLOSE);

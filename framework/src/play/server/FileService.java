@@ -108,7 +108,9 @@ public class FileService  {
 	        // Now send headers and optionally the body
 	        if (!isHead) {
 		        if (channel.isOpen()) {
-			        addWriteFutureLogging("first", localFile, nettyRequest, ctx.write(nettyResponse));
+			        ChannelFuture headerWriteFuture = ctx.write(nettyResponse);
+			        headerWriteFuture.addListener(PlayHandler.CLOSE_ON_WRITE_FAILURE);
+			        addWriteFutureLogging("first", localFile, nettyRequest, headerWriteFuture);
 
 			        ChannelFuture writeFuture;
 
@@ -134,7 +136,7 @@ public class FileService  {
 		
 		        // HEAD: send headers only (with correct framing) and close the file
 		        if (channel.isOpen()) {
-		        	handleWriteFuture("head", localFile, nettyRequest, channel.writeAndFlush(nettyResponse), isKeepAlive, raf);
+					handleWriteFuture("head", localFile, nettyRequest, PlayHandler.writeWithoutBody(channel, nettyResponse), isKeepAlive, raf);
 		        } else {
 		        	Logger.debug("Try to write on a closed channel[keepAlive:%s]: Remote host may have closed the connection", String.valueOf(isKeepAlive));
 			        IOUtils.closeQuietly(raf);
